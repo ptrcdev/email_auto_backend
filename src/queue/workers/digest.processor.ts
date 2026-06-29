@@ -1,7 +1,6 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
-import { DIGEST_QUEUE } from '../queue.module.js';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Worker, Job } from 'bullmq';
+import { DIGEST_QUEUE } from '../queue.constants.js';
 import { EmailService } from '../../email/email.service.js';
 import { ClassificationService } from '../../classification/classification.service.js';
 import { DigestSenderService } from '../../digest/digest-sender.service.js';
@@ -9,15 +8,17 @@ import { UserRepository } from '../../repositories/user.repository.js';
 import { EmailRecordRepository } from '../../repositories/email-record.repository.js';
 import { PriorityRepository } from '../../repositories/priority.repository.js';
 import { EmailRecord } from '../../entities/email-record.entity.js';
+import { ConfigService } from '@nestjs/config';
 
 interface DigestJobData {
   userId: string;
   date: string;
 }
 
-@Processor(DIGEST_QUEUE)
-export class DigestProcessor extends WorkerHost {
+@Injectable()
+export class DigestProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DigestProcessor.name);
+  private worker: Worker;
 
   constructor(
     private readonly emailService: EmailService,
@@ -26,11 +27,28 @@ export class DigestProcessor extends WorkerHost {
     private readonly userRepo: UserRepository,
     private readonly emailRecordRepo: EmailRecordRepository,
     private readonly priorityRepo: PriorityRepository,
-  ) {
-    super();
+    private readonly config: ConfigService,
+  ) {}
+
+  onModuleInit() {
+    const redisUrl = this.config.get<string>('REDIS_URL', 'redis://localhost:6379');
+    this.worker = new Worker(DIGEST_QUEUE, async (job: Job<DigestJobData>) => {
+      return this.handleJob(job);
+    }, { connection: { url: redisUrl } });
+
+    this.worker.on('failed', (job, err) => {
+      this.logger.error(`Digest job ${job?.id} failed: ${err.message}`);
+    });
+    this.worker.on('completed', (job) => {
+      this.logger.log(`Digest job ${job.id} completed`);
+    });
   }
 
-  async process(job: Job<DigestJobData>): Promise<{ success: boolean; skipped?: boolean; emailCount?: number }> {
+  async onModuleDestroy() {
+    await this.worker?.close();
+  }
+
+  private async handleJob(job: Job<DigestJobData>): Promise<{ success: boolean; skipped?: boolean; emailCount?: number }> {
     const { userId, date } = job.data;
     this.logger.log(`Processing digest job ${job.id} for user ${userId} (${date})`);
 

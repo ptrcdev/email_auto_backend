@@ -1,16 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { DIGEST_QUEUE, WHATSAPP_QUEUE, PRIORITY_QUEUE } from './queue.module.js';
+import { DIGEST_QUEUE, WHATSAPP_QUEUE, PRIORITY_QUEUE } from './queue.constants.js';
 
 @Injectable()
 export class QueueService {
   private readonly logger = new Logger(QueueService.name);
 
   constructor(
-    @InjectQueue(DIGEST_QUEUE) private readonly digestQueue: Queue,
-    @InjectQueue(WHATSAPP_QUEUE) private readonly whatsappQueue: Queue,
-    @InjectQueue(PRIORITY_QUEUE) private readonly priorityQueue: Queue,
+    @Inject(DIGEST_QUEUE) private readonly digestQueue: Queue,
+    @Inject(WHATSAPP_QUEUE) private readonly whatsappQueue: Queue,
+    @Inject(PRIORITY_QUEUE) private readonly priorityQueue: Queue,
   ) {}
 
   async enqueueDigest(userId: string, date: string): Promise<void> {

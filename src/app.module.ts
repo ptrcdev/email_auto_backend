@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
-import { BullModule } from '@nestjs/bullmq';
 import { AuthModule } from './auth/auth.module.js';
 import { EmailModule } from './email/email.module.js';
 import { WhatsAppModule } from './whatsapp/whatsapp.module.js';
@@ -10,6 +9,7 @@ import { ClassificationModule } from './classification/classification.module.js'
 import { DigestModule } from './digest/digest.module.js';
 import { SchedulerModule } from './scheduler/scheduler.module.js';
 import { UsersModule } from './users/users.module.js';
+import { QueueModule } from './queue/queue.module.js';
 import { User } from './entities/user.entity.js';
 import { Priority } from './entities/priority.entity.js';
 import { EmailRecord } from './entities/email-record.entity.js';
@@ -49,14 +49,6 @@ import { Digest } from './entities/digest.entity.js';
         };
       },
     }),
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
-        return { connection: { url: redisUrl } };
-      },
-    }),
     ScheduleModule.forRoot(),
     AuthModule,
     EmailModule,
@@ -65,6 +57,7 @@ import { Digest } from './entities/digest.entity.js';
     DigestModule,
     SchedulerModule,
     UsersModule,
+    QueueModule,
   ],
 })
 export class AppModule {}

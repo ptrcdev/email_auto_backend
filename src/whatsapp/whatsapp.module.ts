@@ -11,6 +11,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
   imports: [TypeOrmModule.forFeature([User, Priority])],
   controllers: [WhatsAppController],
   providers: [WhatsAppService, UserRepository, PriorityRepository],
-  exports: [WhatsAppService],
+  exports: [WhatsAppService, UserRepository, PriorityRepository],
 })
 export class WhatsAppModule {}

@@ -10,6 +10,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 @Module({
   imports: [AuthModule, TypeOrmModule.forFeature([User, EmailRecord])],
   providers: [EmailService, UserRepository, EmailRecordRepository],
-  exports: [EmailService],
+  exports: [EmailService, UserRepository, EmailRecordRepository],
 })
 export class EmailModule {}

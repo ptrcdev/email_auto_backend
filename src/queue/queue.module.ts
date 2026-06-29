@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QueueService } from './queue.service.js';
 import { DigestProcessor } from './workers/digest.processor.js';
@@ -10,47 +9,61 @@ import { EmailModule } from '../email/email.module.js';
 import { ClassificationModule } from '../classification/classification.module.js';
 import { DigestModule } from '../digest/digest.module.js';
 import { WhatsAppModule } from '../whatsapp/whatsapp.module.js';
-import { UserRepository } from '../repositories/user.repository.js';
-import { EmailRecordRepository } from '../repositories/email-record.repository.js';
-import { PriorityRepository } from '../repositories/priority.repository.js';
-import { User } from '../entities/user.entity.js';
-import { EmailRecord } from '../entities/email-record.entity.js';
-import { Priority } from '../entities/priority.entity.js';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { Queue } from 'bullmq';
+import { DIGEST_QUEUE, WHATSAPP_QUEUE, PRIORITY_QUEUE } from './queue.constants.js';
 
-export const DIGEST_QUEUE = 'digest-daily';
-export const WHATSAPP_QUEUE = 'whatsapp-prompt';
-export const PRIORITY_QUEUE = 'priority-decay';
+const digestQueueFactory = {
+  provide: DIGEST_QUEUE,
+  useFactory: (config: ConfigService) => {
+    const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
+    return new Queue(DIGEST_QUEUE, {
+      connection: { url: redisUrl },
+      defaultJobOptions: { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true, removeOnFail: false },
+    });
+  },
+  inject: [ConfigService],
+};
+
+const whatsappQueueFactory = {
+  provide: WHATSAPP_QUEUE,
+  useFactory: (config: ConfigService) => {
+    const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
+    return new Queue(WHATSAPP_QUEUE, {
+      connection: { url: redisUrl },
+      defaultJobOptions: { attempts: 2, backoff: { type: 'fixed', delay: 30000 }, removeOnComplete: true, removeOnFail: false },
+    });
+  },
+  inject: [ConfigService],
+};
+
+const priorityQueueFactory = {
+  provide: PRIORITY_QUEUE,
+  useFactory: (config: ConfigService) => {
+    const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
+    return new Queue(PRIORITY_QUEUE, {
+      connection: { url: redisUrl },
+      defaultJobOptions: { attempts: 1, removeOnComplete: true, removeOnFail: false },
+    });
+  },
+  inject: [ConfigService],
+};
 
 @Module({
   imports: [
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
-        return { connection: { url: redisUrl } };
-      },
-    }),
-    BullModule.registerQueue(
-      { name: DIGEST_QUEUE, defaultJobOptions: { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true, removeOnFail: false } },
-      { name: WHATSAPP_QUEUE, defaultJobOptions: { attempts: 2, backoff: { type: 'fixed', delay: 30000 }, removeOnComplete: true, removeOnFail: false } },
-      { name: PRIORITY_QUEUE, defaultJobOptions: { attempts: 1, removeOnComplete: true, removeOnFail: false } },
-    ),
+    ConfigModule,
     EmailModule,
     ClassificationModule,
     DigestModule,
     WhatsAppModule,
-    TypeOrmModule.forFeature([User, EmailRecord, Priority]),
   ],
   providers: [
+    digestQueueFactory,
+    whatsappQueueFactory,
+    priorityQueueFactory,
     QueueService,
     DigestProcessor,
     WhatsAppProcessor,
     PriorityProcessor,
-    UserRepository,
-    EmailRecordRepository,
-    PriorityRepository,
   ],
   controllers: [QueueController],
   exports: [QueueService],
