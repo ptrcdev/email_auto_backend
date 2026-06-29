@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module.js';
 import { EmailModule } from './email/email.module.js';
@@ -20,16 +20,33 @@ import { Digest } from './entities/digest.entity.js';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('DATABASE_HOST', 'localhost'),
-        port: config.get('DATABASE_PORT', 5432),
-        username: config.get('DATABASE_USERNAME', 'postgres'),
-        password: config.get('DATABASE_PASSWORD', 'postgres'),
-        database: config.get('DATABASE_NAME', 'email_auto'),
-        entities: [User, Priority, EmailRecord, Digest],
-        synchronize: config.get('NODE_ENV') === 'development',
-      }),
+      useFactory: (config: ConfigService): TypeOrmModuleOptions => {
+        const isProduction = config.get('NODE_ENV') === 'production';
+        const databaseUrl = config.get<string>('DATABASE_URL');
+        const entities = [User, Priority, EmailRecord, Digest];
+
+        if (databaseUrl) {
+          return {
+            type: 'postgres',
+            url: databaseUrl,
+            entities,
+            synchronize: false,
+            ssl: isProduction ? { rejectUnauthorized: false } : false,
+          };
+        }
+
+        return {
+          type: 'postgres',
+          host: config.get<string>('DATABASE_HOST', 'localhost'),
+          port: parseInt(config.get<string>('DATABASE_PORT', '5432'), 10),
+          username: config.get<string>('DATABASE_USERNAME', 'postgres'),
+          password: config.get<string>('DATABASE_PASSWORD', 'postgres'),
+          database: config.get<string>('DATABASE_NAME', 'email_auto'),
+          entities,
+          synchronize: !isProduction,
+          ssl: isProduction ? { rejectUnauthorized: false } : false,
+        };
+      },
     }),
     ScheduleModule.forRoot(),
     AuthModule,

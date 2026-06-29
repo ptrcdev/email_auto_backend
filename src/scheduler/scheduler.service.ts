@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
+import { DataSource } from 'typeorm';
 import { EmailService } from '../email/email.service.js';
 import { ClassificationService } from '../classification/classification.service.js';
 import { DigestSenderService } from '../digest/digest-sender.service.js';
@@ -15,6 +16,7 @@ export class SchedulerService {
   private readonly logger = new Logger(SchedulerService.name);
 
   constructor(
+    private readonly dataSource: DataSource,
     private readonly emailService: EmailService,
     private readonly classificationService: ClassificationService,
     private readonly digestSenderService: DigestSenderService,
@@ -22,48 +24,78 @@ export class SchedulerService {
     private readonly userRepo: UserRepository,
     private readonly emailRecordRepo: EmailRecordRepository,
     private readonly priorityRepo: PriorityRepository,
-  ) { }
+  ) {}
+
+  private async acquireLock(lockId: number): Promise<boolean> {
+    const result = await this.dataSource.query(
+      'SELECT pg_try_advisory_lock($1)',
+      [lockId],
+    );
+    return result[0]?.pg_try_advisory_lock ?? false;
+  }
+
+  private async releaseLock(lockId: number): Promise<void> {
+    await this.dataSource.query('SELECT pg_advisory_unlock($1)', [lockId]);
+  }
 
   @Cron('* * * * *', { name: 'check-user-schedules' })
   async handleSchedules() {
-    const now = new Date();
-    const users = await this.userRepo.findAll();
+    if (!(await this.acquireLock(1001))) {
+      return;
+    }
 
-    this.logger.log(`Schedule check running at ${now.toISOString()}`);
+    try {
+      const now = new Date();
+      const users = await this.userRepo.findAll();
 
-    for (const user of users) {
-      try {
-        const userTime = this.getUserLocalTime(user.timezone);
-        const [digestHour, digestMin] = user.digestTime.split(':').map(Number);
-        const [promptHour, promptMin] = user.whatsappPromptTime.split(':').map(Number);
+      this.logger.log(`Schedule check running at ${now.toISOString()}`);
 
-        this.logger.log(
-          `User ${user.email} (${user.timezone}): ` +
-          `local=${userTime.hours}:${String(userTime.minutes).padStart(2, '0')} ` +
-          `digest=${user.digestTime} prompt=${user.whatsappPromptTime} ` +
-          `whatsapp=${user.whatsappOptedIn}/${!!user.whatsappNumber}`,
-        );
+      for (const user of users) {
+        try {
+          const userTime = this.getUserLocalTime(user.timezone);
+          const [digestHour, digestMin] = user.digestTime.split(':').map(Number);
+          const [promptHour, promptMin] = user.whatsappPromptTime.split(':').map(Number);
 
-        if (userTime.hours === digestHour && userTime.minutes === digestMin) {
-          this.logger.log(`Triggering digest for ${user.email}`);
-          await this.processUserDigest(user);
+          this.logger.log(
+            `User ${user.email} (${user.timezone}): ` +
+            `local=${userTime.hours}:${String(userTime.minutes).padStart(2, '0')} ` +
+            `digest=${user.digestTime} prompt=${user.whatsappPromptTime} ` +
+            `whatsapp=${user.whatsappOptedIn}/${!!user.whatsappNumber}`,
+          );
+
+          if (userTime.hours === digestHour && userTime.minutes === digestMin) {
+            this.logger.log(`Triggering digest for ${user.email}`);
+            await this.processUserDigest(user);
+          }
+
+          if (userTime.hours === promptHour && userTime.minutes === promptMin) {
+            if (userTime.dayOfWeek >= 1 && userTime.dayOfWeek <= 5) {
+              this.logger.log(`Triggering WhatsApp prompt for ${user.email}`);
+              await this.whatsappService.sendPriorityPrompt(user);
+            }
+          }
+        } catch (error) {
+          this.logger.error(`Schedule check failed for user ${user.id}:`, error);
         }
-
-        if (userTime.hours === promptHour && userTime.minutes === promptMin) {
-          this.logger.log(`Triggering WhatsApp prompt for ${user.email}`);
-          await this.whatsappService.sendPriorityPrompt(user);
-        }
-      } catch (error) {
-        this.logger.error(`Schedule check failed for user ${user.id}:`, error);
       }
+    } finally {
+      await this.releaseLock(1001);
     }
   }
 
   @Cron('0 0 * * *', { name: 'deactivate-expired-priorities' })
   async handlePriorityDecay() {
-    this.logger.log('Deactivating expired priorities...');
-    await this.priorityRepo.deactivateExpired();
-    this.logger.log('Priority decay complete');
+    if (!(await this.acquireLock(1002))) {
+      return;
+    }
+
+    try {
+      this.logger.log('Deactivating expired priorities...');
+      await this.priorityRepo.deactivateExpired();
+      this.logger.log('Priority decay complete');
+    } finally {
+      await this.releaseLock(1002);
+    }
   }
 
   async processUserDigest(user: User) {
@@ -106,27 +138,6 @@ export class SchedulerService {
     }
 
     await this.digestSenderService.sendDigest(user, emailRecords);
-  }
-
-  async handleEveningPriorityPrompt() {
-    this.logger.log('Running evening priority prompt...');
-    const now = new Date();
-    const users = await this.userRepo.findAll();
-
-    for (const user of users) {
-      try {
-        const userTime = this.getUserLocalTime(user.timezone);
-        const [promptHour, promptMin] = user.whatsappPromptTime.split(':').map(Number);
-
-        if (userTime.hours === promptHour && userTime.minutes === promptMin) {
-          if (userTime.dayOfWeek >= 1 && userTime.dayOfWeek <= 5) {
-            await this.whatsappService.sendPriorityPrompt(user);
-          }
-        }
-      } catch (error) {
-        this.logger.error(`Failed to send WhatsApp prompt to user ${user.id}:`, error);
-      }
-    }
   }
 
   async handlePriorityDecayManual() {
