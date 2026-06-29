@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from '@nestjs/bullmq';
 import { AuthModule } from './auth/auth.module.js';
 import { EmailModule } from './email/email.module.js';
 import { WhatsAppModule } from './whatsapp/whatsapp.module.js';
@@ -46,6 +47,14 @@ import { Digest } from './entities/digest.entity.js';
           synchronize: !isProduction,
           ssl: isProduction ? { rejectUnauthorized: false } : false,
         };
+      },
+    }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
+        return { connection: { url: redisUrl } };
       },
     }),
     ScheduleModule.forRoot(),

@@ -4,6 +4,8 @@ import { User } from '../entities/user.entity';
 import { Priority } from '../entities/priority.entity';
 import { EmailRecord } from '../entities/email-record.entity';
 import { Digest } from '../entities/digest.entity';
+import { Init1719612000000 } from './migrations/1719612000000-Init';
+
 
 config();
 
@@ -16,9 +18,11 @@ if (process.env.DATABASE_URL) {
     type: 'postgres',
     url: process.env.DATABASE_URL,
     entities: [User, Priority, EmailRecord, Digest],
-    migrations: ['dist/database/migrations/*.js'],
+    migrations: [Init1719612000000],
     synchronize: false,
-    ssl: isProduction ? { rejectUnauthorized: false } : false,
+    ssl: process.env.DATABASE_URL
+      ? { rejectUnauthorized: false }
+      : false
   };
 } else {
   dataSourceOptions = {
@@ -31,8 +35,10 @@ if (process.env.DATABASE_URL) {
     entities: [User, Priority, EmailRecord, Digest],
     migrations: ['dist/database/migrations/*.js'],
     synchronize: false,
-    ssl: isProduction ? { rejectUnauthorized: false } : false,
+    ssl: process.env.DATABASE_URL
+      ? { rejectUnauthorized: false }
+      : false
   };
 }
 
-export default new DataSource(dataSourceOptions);
+export const AppDataSource = new DataSource(dataSourceOptions);

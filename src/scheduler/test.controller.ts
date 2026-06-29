@@ -1,5 +1,5 @@
 import { Controller, Post, Param, Logger } from '@nestjs/common';
-import { SchedulerService } from './scheduler.service.js';
+import { QueueService } from '../queue/queue.service.js';
 import { UserRepository } from '../repositories/user.repository.js';
 
 @Controller('test')
@@ -7,7 +7,7 @@ export class TestController {
   private readonly logger = new Logger(TestController.name);
 
   constructor(
-    private readonly schedulerService: SchedulerService,
+    private readonly queueService: QueueService,
     private readonly userRepo: UserRepository,
   ) {}
 
@@ -16,8 +16,9 @@ export class TestController {
     const user = await this.userRepo.findById(userId);
     if (!user) return { error: 'User not found' };
 
-    await this.schedulerService.processUserDigest(user);
-    return { status: 'digest triggered', userId };
+    const today = new Date().toISOString().split('T')[0];
+    await this.queueService.enqueueDigest(userId, today);
+    return { status: 'digest enqueued', userId };
   }
 
   @Post('whatsapp-prompt/:userId')
@@ -25,19 +26,19 @@ export class TestController {
     const user = await this.userRepo.findById(userId);
     if (!user) return { error: 'User not found' };
 
-    const { WhatsAppService } = await import('../whatsapp/whatsapp.service.js');
-    return { status: 'use curl -X POST /test/digest/:userId instead' };
+    await this.queueService.enqueueWhatsAppPrompt(userId);
+    return { status: 'whatsapp prompt enqueued', userId };
   }
 
   @Post('priority-decay')
   async triggerPriorityDecay() {
-    await this.schedulerService.handlePriorityDecayManual();
-    return { status: 'priority decay run' };
+    await this.queueService.enqueuePriorityDecay();
+    return { status: 'priority decay enqueued' };
   }
 
   @Post('check-schedules')
   async triggerScheduleCheck() {
-    await this.schedulerService.handleSchedules();
-    return { status: 'schedule check run' };
+    this.logger.log('Manual schedule check triggered');
+    return { status: 'manual check — use /test/digest/:userId or /test/whatsapp-prompt/:userId for direct triggers' };
   }
 }
