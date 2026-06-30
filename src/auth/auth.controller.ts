@@ -15,7 +15,7 @@ export class AuthController {
   ) {}
 
   private get frontendUrl(): string {
-    return this.configService.get('FRONTEND_URL', 'http://localhost:3001');
+    return this.configService.get('FRONTEND_URL', 'http://localhost:5173');
   }
 
   // ── Google ──

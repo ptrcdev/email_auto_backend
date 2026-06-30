@@ -9,7 +9,7 @@ export class Init1719612000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
-      CREATE TABLE "users" (
+      CREATE TABLE IF NOT EXISTS "users" (
         "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         "email" varchar NOT NULL UNIQUE,
         "name" varchar,
@@ -39,7 +39,7 @@ export class Init1719612000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
-      CREATE TABLE "priorities" (
+      CREATE TABLE IF NOT EXISTS "priorities" (
         "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         "userId" uuid NOT NULL,
 
@@ -54,7 +54,7 @@ export class Init1719612000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
-      CREATE TABLE "email_records" (
+      CREATE TABLE IF NOT EXISTS "email_records" (
         "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         "userId" uuid NOT NULL,
 
@@ -78,7 +78,7 @@ export class Init1719612000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
-      CREATE TABLE "digests" (
+      CREATE TABLE IF NOT EXISTS "digests" (
         "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         "userId" uuid NOT NULL,
 

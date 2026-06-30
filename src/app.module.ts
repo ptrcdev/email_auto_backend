@@ -9,6 +9,7 @@ import { ClassificationModule } from './classification/classification.module.js'
 import { DigestModule } from './digest/digest.module.js';
 import { SchedulerModule } from './scheduler/scheduler.module.js';
 import { UsersModule } from './users/users.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { QueueModule } from './queue/queue.module.js';
 import { User } from './entities/user.entity.js';
 import { Priority } from './entities/priority.entity.js';
@@ -57,6 +58,7 @@ import { Digest } from './entities/digest.entity.js';
     DigestModule,
     SchedulerModule,
     UsersModule,
+    DashboardModule,
     QueueModule,
   ],
 })
