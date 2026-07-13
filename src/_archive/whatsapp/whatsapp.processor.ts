@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { Worker, Job } from 'bullmq';
 import { WHATSAPP_QUEUE } from '../queue.constants.js';
 import { WhatsAppService } from '../../whatsapp/whatsapp.service.js';
@@ -21,10 +26,17 @@ export class WhatsAppProcessor implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    const redisUrl = this.config.get<string>('REDIS_URL', 'redis://localhost:6379');
-    this.worker = new Worker(WHATSAPP_QUEUE, async (job: Job<WhatsAppJobData>) => {
-      return this.handleJob(job);
-    }, { connection: { url: redisUrl } });
+    const redisUrl = this.config.get<string>(
+      'REDIS_URL',
+      'redis://localhost:6379',
+    );
+    this.worker = new Worker(
+      WHATSAPP_QUEUE,
+      async (job: Job<WhatsAppJobData>) => {
+        return this.handleJob(job);
+      },
+      { connection: { url: redisUrl } },
+    );
 
     this.worker.on('failed', (job, err) => {
       this.logger.error(`WhatsApp job ${job?.id} failed: ${err.message}`);
@@ -38,9 +50,13 @@ export class WhatsAppProcessor implements OnModuleInit, OnModuleDestroy {
     await this.worker?.close();
   }
 
-  private async handleJob(job: Job<WhatsAppJobData>): Promise<{ success: boolean; skipped?: boolean }> {
+  private async handleJob(
+    job: Job<WhatsAppJobData>,
+  ): Promise<{ success: boolean; skipped?: boolean }> {
     const { userId } = job.data;
-    this.logger.log(`Processing WhatsApp prompt job ${job.id} for user ${userId}`);
+    this.logger.log(
+      `Processing WhatsApp prompt job ${job.id} for user ${userId}`,
+    );
 
     const user = await this.userRepo.findById(userId);
     if (!user) {
@@ -55,7 +71,9 @@ export class WhatsAppProcessor implements OnModuleInit, OnModuleDestroy {
 
     await this.whatsappService.sendPriorityPrompt(user);
 
-    this.logger.log(`WhatsApp prompt job ${job.id} completed for user ${userId}`);
+    this.logger.log(
+      `WhatsApp prompt job ${job.id} completed for user ${userId}`,
+    );
     return { success: true };
   }
 }

@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Query, Res, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  Res,
+  Logger,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { WhatsAppService } from './whatsapp.service.js';
 import { UserRepository } from '../repositories/user.repository.js';
@@ -31,10 +39,7 @@ export class WhatsAppController {
   }
 
   @Post('webhook')
-  async handleWebhook(
-    @Body() body: any,
-    @Res() res: Response,
-  ) {
+  async handleWebhook(@Body() body: any, @Res() res: Response) {
     try {
       if (body.object !== 'whatsapp_business_account') {
         res.status(200).send('OK');
@@ -70,10 +75,7 @@ export class WhatsAppController {
   }
 
   @Post('opt-in')
-  async optIn(
-    @Body() body: { whatsappNumber: string },
-    @Res() res: Response,
-  ) {
+  async optIn(@Body() body: { whatsappNumber: string }, @Res() res: Response) {
     const user = await this.userRepo.findByWhatsAppNumber(body.whatsappNumber);
     if (!user) {
       res.status(404).json({ error: 'User not found' });

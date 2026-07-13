@@ -2,15 +2,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QueueService } from './queue.service.js';
 import { DigestProcessor } from './workers/digest.processor.js';
-import { WhatsAppProcessor } from './workers/whatsapp.processor.js';
 import { PriorityProcessor } from './workers/priority.processor.js';
 import { QueueController } from './queue.controller.js';
 import { EmailModule } from '../email/email.module.js';
 import { ClassificationModule } from '../classification/classification.module.js';
 import { DigestModule } from '../digest/digest.module.js';
-import { WhatsAppModule } from '../whatsapp/whatsapp.module.js';
+import { PrioritiesModule } from '../priorities/priorities.module.js';
 import { Queue } from 'bullmq';
-import { DIGEST_QUEUE, WHATSAPP_QUEUE, PRIORITY_QUEUE } from './queue.constants.js';
+import { DIGEST_QUEUE, PRIORITY_QUEUE } from './queue.constants.js';
 
 const digestQueueFactory = {
   provide: DIGEST_QUEUE,
@@ -18,19 +17,12 @@ const digestQueueFactory = {
     const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
     return new Queue(DIGEST_QUEUE, {
       connection: { url: redisUrl },
-      defaultJobOptions: { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true, removeOnFail: false },
-    });
-  },
-  inject: [ConfigService],
-};
-
-const whatsappQueueFactory = {
-  provide: WHATSAPP_QUEUE,
-  useFactory: (config: ConfigService) => {
-    const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
-    return new Queue(WHATSAPP_QUEUE, {
-      connection: { url: redisUrl },
-      defaultJobOptions: { attempts: 2, backoff: { type: 'fixed', delay: 30000 }, removeOnComplete: true, removeOnFail: false },
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
     });
   },
   inject: [ConfigService],
@@ -42,27 +34,23 @@ const priorityQueueFactory = {
     const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
     return new Queue(PRIORITY_QUEUE, {
       connection: { url: redisUrl },
-      defaultJobOptions: { attempts: 1, removeOnComplete: true, removeOnFail: false },
+      defaultJobOptions: {
+        attempts: 1,
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
     });
   },
   inject: [ConfigService],
 };
 
 @Module({
-  imports: [
-    ConfigModule,
-    EmailModule,
-    ClassificationModule,
-    DigestModule,
-    WhatsAppModule,
-  ],
+  imports: [ConfigModule, EmailModule, ClassificationModule, DigestModule, PrioritiesModule],
   providers: [
     digestQueueFactory,
-    whatsappQueueFactory,
     priorityQueueFactory,
     QueueService,
     DigestProcessor,
-    WhatsAppProcessor,
     PriorityProcessor,
   ],
   controllers: [QueueController],

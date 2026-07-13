@@ -21,11 +21,12 @@ export class User {
   @Column({ nullable: true })
   name: string;
 
-  @Column({ nullable: true })
-  whatsappNumber: string;
+  // WhatsApp fields archived — re-activate when WhatsApp integration is enabled
+  // @Column({ nullable: true })
+  // whatsappNumber: string;
 
-  @Column({ default: false })
-  whatsappOptedIn: boolean;
+  // @Column({ default: false })
+  // whatsappOptedIn: boolean;
 
   @Column({ nullable: true })
   googleAccessToken: string;
@@ -52,7 +53,16 @@ export class User {
   digestTime: string;
 
   @Column({ default: '18:00' })
-  whatsappPromptTime: string;
+  reminderTime: string;
+
+  @Column({ default: false })
+  reminderEnabled: boolean;
+
+  @Column({ default: false })
+  calendarConnected: boolean;
+
+  @Column({ type: 'json', nullable: true })
+  pushSubscription: Record<string, any> | null;
 
   @Column({ default: 'Europe/Lisbon' })
   timezone: string;

@@ -59,10 +59,7 @@ export class DashboardService {
     return sorted;
   }
 
-  async search(
-    email: string,
-    query: string,
-  ): Promise<SearchResult> {
+  async search(email: string, query: string): Promise<SearchResult> {
     const user = await this.userRepo.findByEmail(email);
     if (!user) return { emails: [], interpretation: 'User not found' };
 
@@ -76,14 +73,16 @@ export class DashboardService {
       intent.dateRange.end ? new Date(intent.dateRange.end) : null,
     );
 
-    const interpretation = this.buildInterpretation(query, intent, emails.length);
+    const interpretation = this.buildInterpretation(
+      query,
+      intent,
+      emails.length,
+    );
 
     return { emails, interpretation };
   }
 
-  async getStats(
-    email: string,
-  ): Promise<{
+  async getStats(email: string): Promise<{
     total: number;
     urgent: number;
     needsReview: number;
@@ -93,7 +92,14 @@ export class DashboardService {
   }> {
     const user = await this.userRepo.findByEmail(email);
     if (!user) {
-      return { total: 0, urgent: 0, needsReview: 0, lowPriority: 0, topSenders: [], upcomingDeadlines: [] };
+      return {
+        total: 0,
+        urgent: 0,
+        needsReview: 0,
+        lowPriority: 0,
+        topSenders: [],
+        upcomingDeadlines: [],
+      };
     }
 
     const stats = await this.emailRecordRepo.getStatsForUser(user.id);
@@ -103,7 +109,10 @@ export class DashboardService {
   private async extractIntent(query: string): Promise<ExtractedSearchIntent> {
     try {
       const response = await this.openai.chat.completions.create({
-        model: this.configService.get<string>('LLM_MODEL', 'anthropic/claude-sonnet-4-20250514'),
+        model: this.configService.get<string>(
+          'LLM_MODEL',
+          'anthropic/claude-sonnet-4-20250514',
+        ),
         response_format: { type: 'json_object' },
         messages: [
           {
@@ -139,7 +148,11 @@ Rules:
       return JSON.parse(content);
     } catch (error) {
       this.logger.error('Failed to extract search intent:', error);
-      return { keywords: query.split(/\s+/), senderRole: null, dateRange: { start: null, end: null } };
+      return {
+        keywords: query.split(/\s+/),
+        senderRole: null,
+        dateRange: { start: null, end: null },
+      };
     }
   }
 
@@ -160,7 +173,8 @@ Rules:
       const end = intent.dateRange.end || 'now';
       parts.push(`date range: ${start} to ${end}`);
     }
-    const filterDesc = parts.length > 0 ? `Filtered by ${parts.join('; ')}` : 'Full text search';
+    const filterDesc =
+      parts.length > 0 ? `Filtered by ${parts.join('; ')}` : 'Full text search';
     return `${filterDesc} — ${resultCount} result${resultCount !== 1 ? 's' : ''} found`;
   }
 }

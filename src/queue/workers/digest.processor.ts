@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { Worker, Job } from 'bullmq';
 import { DIGEST_QUEUE } from '../queue.constants.js';
 import { EmailService } from '../../email/email.service.js';
@@ -31,10 +36,17 @@ export class DigestProcessor implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    const redisUrl = this.config.get<string>('REDIS_URL', 'redis://localhost:6379');
-    this.worker = new Worker(DIGEST_QUEUE, async (job: Job<DigestJobData>) => {
-      return this.handleJob(job);
-    }, { connection: { url: redisUrl } });
+    const redisUrl = this.config.get<string>(
+      'REDIS_URL',
+      'redis://localhost:6379',
+    );
+    this.worker = new Worker(
+      DIGEST_QUEUE,
+      async (job: Job<DigestJobData>) => {
+        return this.handleJob(job);
+      },
+      { connection: { url: redisUrl } },
+    );
 
     this.worker.on('failed', (job, err) => {
       this.logger.error(`Digest job ${job?.id} failed: ${err.message}`);
@@ -48,9 +60,13 @@ export class DigestProcessor implements OnModuleInit, OnModuleDestroy {
     await this.worker?.close();
   }
 
-  private async handleJob(job: Job<DigestJobData>): Promise<{ success: boolean; skipped?: boolean; emailCount?: number }> {
+  private async handleJob(
+    job: Job<DigestJobData>,
+  ): Promise<{ success: boolean; skipped?: boolean; emailCount?: number }> {
     const { userId, date } = job.data;
-    this.logger.log(`Processing digest job ${job.id} for user ${userId} (${date})`);
+    this.logger.log(
+      `Processing digest job ${job.id} for user ${userId} (${date})`,
+    );
 
     const user = await this.userRepo.findById(userId);
     if (!user) {
@@ -95,7 +111,9 @@ export class DigestProcessor implements OnModuleInit, OnModuleDestroy {
 
     await this.digestSenderService.sendDigest(user, emailRecords);
 
-    this.logger.log(`Digest job ${job.id} completed for user ${userId} (${emailRecords.length} emails)`);
+    this.logger.log(
+      `Digest job ${job.id} completed for user ${userId} (${emailRecords.length} emails)`,
+    );
     return { success: true, emailCount: emailRecords.length };
   }
 }

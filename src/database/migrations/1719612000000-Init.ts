@@ -117,9 +117,15 @@ export class Init1719612000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "digests" DROP CONSTRAINT "FK_digests_user"`);
-    await queryRunner.query(`ALTER TABLE "email_records" DROP CONSTRAINT "FK_email_records_user"`);
-    await queryRunner.query(`ALTER TABLE "priorities" DROP CONSTRAINT "FK_priorities_user"`);
+    await queryRunner.query(
+      `ALTER TABLE "digests" DROP CONSTRAINT "FK_digests_user"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "email_records" DROP CONSTRAINT "FK_email_records_user"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "priorities" DROP CONSTRAINT "FK_priorities_user"`,
+    );
 
     await queryRunner.query(`DROP TABLE "digests"`);
     await queryRunner.query(`DROP TABLE "email_records"`);

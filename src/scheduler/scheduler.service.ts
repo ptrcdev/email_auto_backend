@@ -31,24 +31,18 @@ export class SchedulerService {
     const users = await this.userRepo.findAll();
     const today = now.toISOString().split('T')[0];
 
-    this.logger.log(`Schedule check running at ${now.toISOString()} (${users.length} users)`);
+    this.logger.log(
+      `Schedule check running at ${now.toISOString()} (${users.length} users)`,
+    );
 
     for (const user of users) {
       try {
         const userTime = this.getUserLocalTime(user.timezone);
         const [digestHour, digestMin] = user.digestTime.split(':').map(Number);
-        const [promptHour, promptMin] = user.whatsappPromptTime.split(':').map(Number);
 
         if (userTime.hours === digestHour && userTime.minutes === digestMin) {
           this.logger.log(`Enqueuing digest for ${user.email}`);
           await this.queueService.enqueueDigest(user.id, today);
-        }
-
-        if (userTime.hours === promptHour && userTime.minutes === promptMin) {
-          if (userTime.dayOfWeek >= 1 && userTime.dayOfWeek <= 5) {
-            this.logger.log(`Enqueuing WhatsApp prompt for ${user.email}`);
-            await this.queueService.enqueueWhatsAppPrompt(user.id);
-          }
         }
       } catch (error) {
         this.logger.error(`Schedule check failed for user ${user.id}:`, error);
@@ -83,10 +77,18 @@ export class SchedulerService {
 
     const parts = formatter.formatToParts(now);
     const hours = parseInt(parts.find((p) => p.type === 'hour')?.value || '0');
-    const minutes = parseInt(parts.find((p) => p.type === 'minute')?.value || '0');
+    const minutes = parseInt(
+      parts.find((p) => p.type === 'minute')?.value || '0',
+    );
 
     const dayMap: Record<string, number> = {
-      Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+      Sun: 0,
+      Mon: 1,
+      Tue: 2,
+      Wed: 3,
+      Thu: 4,
+      Fri: 5,
+      Sat: 6,
     };
     const dayStr = parts.find((p) => p.type === 'weekday')?.value || 'Mon';
     const dayOfWeek = dayMap[dayStr] ?? 1;

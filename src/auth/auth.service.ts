@@ -40,7 +40,10 @@ export class AuthService implements OnModuleInit {
     const { tokens } = await this.googleOAuth2Client.getToken(code);
     this.googleOAuth2Client.setCredentials(tokens);
 
-    const oauth2 = google.oauth2({ version: 'v2', auth: this.googleOAuth2Client as any });
+    const oauth2 = google.oauth2({
+      version: 'v2',
+      auth: this.googleOAuth2Client,
+    });
     const { data } = await oauth2.userinfo.get();
 
     return {
@@ -77,14 +80,16 @@ export class AuthService implements OnModuleInit {
       'https://graph.microsoft.com/User.Read',
     ];
 
-    return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+    return (
+      `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
       `client_id=${clientId}` +
       `&response_type=code` +
-      `&redirect_uri=${encodeURIComponent(redirectUri!)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&scope=${encodeURIComponent(scopes.join(' '))}` +
       `&response_mode=query` +
       `&state=microsoft:${userId}` +
-      `&prompt=consent`;
+      `&prompt=consent`
+    );
   }
 
   async handleMicrosoftCallback(code: string): Promise<{
@@ -97,21 +102,26 @@ export class AuthService implements OnModuleInit {
     const clientSecret = this.configService.get('MICROSOFT_SECRET');
     const redirectUri = this.configService.get('MICROSOFT_REDIRECT_URI');
 
-    this.logger.log(`Microsoft token exchange - redirect_uri: "${redirectUri}"`);
+    this.logger.log(
+      `Microsoft token exchange - redirect_uri: "${redirectUri}"`,
+    );
 
-    const tokenResponse = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId!,
-        client_secret: clientSecret!,
-        code,
-        redirect_uri: redirectUri!,
-        grant_type: 'authorization_code',
-      }),
-    });
+    const tokenResponse = await fetch(
+      'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId!,
+          client_secret: clientSecret!,
+          code,
+          redirect_uri: redirectUri!,
+          grant_type: 'authorization_code',
+        }),
+      },
+    );
 
-    const tokenData = await tokenResponse.json() as {
+    const tokenData = (await tokenResponse.json()) as {
       access_token: string;
       refresh_token: string;
       expires_in: number;
@@ -125,7 +135,10 @@ export class AuthService implements OnModuleInit {
     const graphResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
-    const profile = await graphResponse.json() as { mail: string; userPrincipalName: string };
+    const profile = (await graphResponse.json()) as {
+      mail: string;
+      userPrincipalName: string;
+    };
 
     const expiryDate = new Date();
     expiryDate.setSeconds(expiryDate.getSeconds() + tokenData.expires_in);
@@ -144,19 +157,23 @@ export class AuthService implements OnModuleInit {
     const clientId = this.configService.get('MICROSOFT_CLIENT_ID');
     const clientSecret = this.configService.get('MICROSOFT_SECRET');
 
-    const response = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId!,
-        client_secret: clientSecret!,
-        refresh_token: user.microsoftRefreshToken,
-        grant_type: 'refresh_token',
-        scope: 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read',
-      }),
-    });
+    const response = await fetch(
+      'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId!,
+          client_secret: clientSecret!,
+          refresh_token: user.microsoftRefreshToken,
+          grant_type: 'refresh_token',
+          scope:
+            'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read',
+        }),
+      },
+    );
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       access_token: string;
       expires_in: number;
     };

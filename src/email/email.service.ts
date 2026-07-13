@@ -44,13 +44,16 @@ export class EmailService {
       user.googleRefreshToken,
     );
 
-    const gmail = google.gmail({ version: 'v1', auth: authClient as any });
+    const gmail = google.gmail({ version: 'v1', auth: authClient });
 
     try {
-      const lastRecord = await this.emailRecordRepo.findUnprocessedForUser(user.id);
-      const afterDate = lastRecord.length > 0
-        ? Math.floor(lastRecord[0].receivedAt.getTime() / 1000)
-        : Math.floor(Date.now() / 1000) - 86400;
+      const lastRecord = await this.emailRecordRepo.findUnprocessedForUser(
+        user.id,
+      );
+      const afterDate =
+        lastRecord.length > 0
+          ? Math.floor(lastRecord[0].receivedAt.getTime() / 1000)
+          : Math.floor(Date.now() / 1000) - 86400;
 
       const response = await gmail.users.messages.list({
         userId: 'me',
@@ -64,7 +67,10 @@ export class EmailService {
       for (const msg of messages) {
         if (!msg.id) continue;
 
-        const exists = await this.emailRecordRepo.findByGmailId(user.id, msg.id);
+        const exists = await this.emailRecordRepo.findByGmailId(
+          user.id,
+          msg.id,
+        );
         if (exists) continue;
 
         const full = await gmail.users.messages.get({
@@ -75,7 +81,8 @@ export class EmailService {
         });
 
         const headers = full.data.payload?.headers || [];
-        const subject = headers.find((h) => h.name === 'Subject')?.value || '(no subject)';
+        const subject =
+          headers.find((h) => h.name === 'Subject')?.value || '(no subject)';
         const from = headers.find((h) => h.name === 'From')?.value || '';
         const dateStr = headers.find((h) => h.name === 'Date')?.value || '';
 
@@ -89,10 +96,15 @@ export class EmailService {
         });
       }
 
-      this.logger.log(`Fetched ${emails.length} new emails for user ${user.id} (Google)`);
+      this.logger.log(
+        `Fetched ${emails.length} new emails for user ${user.id} (Google)`,
+      );
       return emails;
     } catch (error) {
-      this.logger.error(`Failed to fetch Google emails for user ${user.id}:`, error);
+      this.logger.error(
+        `Failed to fetch Google emails for user ${user.id}:`,
+        error,
+      );
       return [];
     }
   }
@@ -116,16 +128,22 @@ export class EmailService {
           microsoftTokenExpiry: refreshed.expiryDate,
         });
       } catch (error) {
-        this.logger.error(`Failed to refresh Microsoft token for user ${user.id}:`, error);
+        this.logger.error(
+          `Failed to refresh Microsoft token for user ${user.id}:`,
+          error,
+        );
         return [];
       }
     }
 
     try {
-      const lastRecord = await this.emailRecordRepo.findUnprocessedForUser(user.id);
-      const afterDate = lastRecord.length > 0
-        ? lastRecord[0].receivedAt.toISOString()
-        : new Date(Date.now() - 86400000).toISOString();
+      const lastRecord = await this.emailRecordRepo.findUnprocessedForUser(
+        user.id,
+      );
+      const afterDate =
+        lastRecord.length > 0
+          ? lastRecord[0].receivedAt.toISOString()
+          : new Date(Date.now() - 86400000).toISOString();
 
       const response = await fetch(
         `https://graph.microsoft.com/v1.0/me/messages?$filter=receivedDateTime ge ${afterDate}&$top=100&$orderby=receivedDateTime desc&$select=id,subject,from,bodyPreview,receivedDateTime`,
@@ -138,11 +156,13 @@ export class EmailService {
 
       if (!response.ok) {
         const errorBody = await response.text();
-        this.logger.error(`Microsoft Graph API error for user ${user.id}: ${errorBody}`);
+        this.logger.error(
+          `Microsoft Graph API error for user ${user.id}: ${errorBody}`,
+        );
         return [];
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         value: Array<{
           id: string;
           subject: string;
@@ -155,7 +175,10 @@ export class EmailService {
       const emails: RawEmail[] = [];
 
       for (const msg of data.value) {
-        const exists = await this.emailRecordRepo.findByGmailId(user.id, msg.id);
+        const exists = await this.emailRecordRepo.findByGmailId(
+          user.id,
+          msg.id,
+        );
         if (exists) continue;
 
         emails.push({
@@ -168,10 +191,15 @@ export class EmailService {
         });
       }
 
-      this.logger.log(`Fetched ${emails.length} new emails for user ${user.id} (Microsoft)`);
+      this.logger.log(
+        `Fetched ${emails.length} new emails for user ${user.id} (Microsoft)`,
+      );
       return emails;
     } catch (error) {
-      this.logger.error(`Failed to fetch Microsoft emails for user ${user.id}:`, error);
+      this.logger.error(
+        `Failed to fetch Microsoft emails for user ${user.id}:`,
+        error,
+      );
       return [];
     }
   }

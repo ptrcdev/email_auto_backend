@@ -4,13 +4,15 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module.js';
 import { EmailModule } from './email/email.module.js';
-import { WhatsAppModule } from './whatsapp/whatsapp.module.js';
 import { ClassificationModule } from './classification/classification.module.js';
 import { DigestModule } from './digest/digest.module.js';
 import { SchedulerModule } from './scheduler/scheduler.module.js';
 import { UsersModule } from './users/users.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { QueueModule } from './queue/queue.module.js';
+import { PrioritiesModule } from './priorities/priorities.module.js';
+import { CalendarModule } from './calendar/calendar.module.js';
+import { PushModule } from './push/push.module.js';
 import { User } from './entities/user.entity.js';
 import { Priority } from './entities/priority.entity.js';
 import { EmailRecord } from './entities/email-record.entity.js';
@@ -53,13 +55,15 @@ import { Digest } from './entities/digest.entity.js';
     ScheduleModule.forRoot(),
     AuthModule,
     EmailModule,
-    WhatsAppModule,
     ClassificationModule,
     DigestModule,
     SchedulerModule,
     UsersModule,
     DashboardModule,
     QueueModule,
+    PrioritiesModule,
+    CalendarModule,
+    PushModule,
   ],
 })
 export class AppModule {}

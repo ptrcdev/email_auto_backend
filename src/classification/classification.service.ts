@@ -35,9 +35,10 @@ export class ClassificationService {
   ): Promise<Map<string, ClassificationResult>> {
     const results = new Map<string, ClassificationResult>();
 
-    const priorityContext = priorities.length > 0
-      ? `\n\nUser's stated priorities for tomorrow:\n${priorities.map((p) => `- "${p.rawText}"`).join('\n')}`
-      : '';
+    const priorityContext =
+      priorities.length > 0
+        ? `\n\nUser's stated priorities for tomorrow:\n${priorities.map((p) => `- "${p.rawText}"`).join('\n')}`
+        : '';
 
     for (const email of emails) {
       try {
@@ -62,7 +63,10 @@ export class ClassificationService {
     priorityContext: string,
   ): Promise<ClassificationResult> {
     const response = await this.openai.chat.completions.create({
-      model: this.configService.get<string>('LLM_MODEL', 'anthropic/claude-sonnet-4-20250514'),
+      model: this.configService.get<string>(
+        'LLM_MODEL',
+        'anthropic/claude-sonnet-4-20250514',
+      ),
       response_format: { type: 'json_object' },
       messages: [
         {

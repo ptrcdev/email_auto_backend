@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { Worker, Job } from 'bullmq';
 import { PRIORITY_QUEUE } from '../queue.constants.js';
 import { PriorityRepository } from '../../repositories/priority.repository.js';
@@ -15,10 +20,17 @@ export class PriorityProcessor implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    const redisUrl = this.config.get<string>('REDIS_URL', 'redis://localhost:6379');
-    this.worker = new Worker(PRIORITY_QUEUE, async (_job: Job) => {
-      return this.handleJob();
-    }, { connection: { url: redisUrl } });
+    const redisUrl = this.config.get<string>(
+      'REDIS_URL',
+      'redis://localhost:6379',
+    );
+    this.worker = new Worker(
+      PRIORITY_QUEUE,
+      async (_job: Job) => {
+        return this.handleJob();
+      },
+      { connection: { url: redisUrl } },
+    );
 
     this.worker.on('failed', (job, err) => {
       this.logger.error(`Priority decay job ${job?.id} failed: ${err.message}`);

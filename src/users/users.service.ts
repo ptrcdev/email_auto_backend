@@ -20,10 +20,9 @@ export class UsersService {
   async updateOnboarding(
     email: string,
     data: {
-      whatsappNumber?: string;
-      whatsappOptedIn?: boolean;
       digestTime?: string;
-      whatsappPromptTime?: string;
+      reminderTime?: string;
+      reminderEnabled?: boolean;
       timezone?: string;
     },
   ) {
@@ -34,6 +33,42 @@ export class UsersService {
 
     await this.userRepo.update(user.id, data);
     this.logger.log(`Onboarding preferences saved for user ${email}`);
+    return { status: 'ok' };
+  }
+
+  async getSettings(email: string) {
+    const user = await this.userRepo.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      userId: user.id,
+      digestTime: user.digestTime,
+      reminderTime: user.reminderTime,
+      reminderEnabled: user.reminderEnabled,
+      timezone: user.timezone,
+      calendarConnected: user.calendarConnected,
+      pushSubscription: user.pushSubscription,
+    };
+  }
+
+  async updateSettings(
+    email: string,
+    data: {
+      digestTime?: string;
+      reminderTime?: string;
+      reminderEnabled?: boolean;
+      timezone?: string;
+    },
+  ) {
+    const user = await this.userRepo.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.userRepo.update(user.id, data);
+    this.logger.log(`Settings saved for user ${email}`);
     return { status: 'ok' };
   }
 }

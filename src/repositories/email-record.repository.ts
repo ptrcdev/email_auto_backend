@@ -58,7 +58,8 @@ export class EmailRecordRepository {
     startDate: Date | null,
     endDate: Date | null,
   ): Promise<EmailRecord[]> {
-    const qb = this.repo.createQueryBuilder('e')
+    const qb = this.repo
+      .createQueryBuilder('e')
       .where('e.userId = :userId', { userId });
 
     if (keywords.length > 0) {
@@ -87,16 +88,16 @@ export class EmailRecordRepository {
       return emails.filter(
         (e) =>
           e.extractedFields?.senderRole &&
-          e.extractedFields.senderRole.toLowerCase().includes(senderRole.toLowerCase()),
+          e.extractedFields.senderRole
+            .toLowerCase()
+            .includes(senderRole.toLowerCase()),
       );
     }
 
     return emails;
   }
 
-  async getStatsForUser(
-    userId: string,
-  ): Promise<{
+  async getStatsForUser(userId: string): Promise<{
     total: number;
     urgent: number;
     needsReview: number;
@@ -106,9 +107,15 @@ export class EmailRecordRepository {
   }> {
     const total = await this.repo.count({ where: { userId } });
 
-    const urgent = await this.repo.count({ where: { userId, category: 'urgent' } });
-    const needsReview = await this.repo.count({ where: { userId, category: 'needs_review' } });
-    const lowPriority = await this.repo.count({ where: { userId, category: 'low_priority' } });
+    const urgent = await this.repo.count({
+      where: { userId, category: 'urgent' },
+    });
+    const needsReview = await this.repo.count({
+      where: { userId, category: 'needs_review' },
+    });
+    const lowPriority = await this.repo.count({
+      where: { userId, category: 'low_priority' },
+    });
 
     const topSenders = await this.repo
       .createQueryBuilder('e')
@@ -127,11 +134,15 @@ export class EmailRecordRepository {
     });
 
     const upcomingDeadlines = allEmails
-      .filter((e) => e.extractedFields?.deadline && e.extractedFields.deadline.trim() !== '')
+      .filter(
+        (e) =>
+          e.extractedFields?.deadline &&
+          e.extractedFields.deadline.trim() !== '',
+      )
       .slice(0, 10)
       .map((e) => ({
         subject: e.subject,
-        deadline: e.extractedFields!.deadline!,
+        deadline: e.extractedFields.deadline!,
         sender: e.sender,
       }));
 
@@ -140,7 +151,10 @@ export class EmailRecordRepository {
       urgent,
       needsReview,
       lowPriority,
-      topSenders: topSenders.map((s) => ({ sender: s.sender, count: parseInt(s.count, 10) })),
+      topSenders: topSenders.map((s) => ({
+        sender: s.sender,
+        count: parseInt(s.count, 10),
+      })),
       upcomingDeadlines,
     };
   }

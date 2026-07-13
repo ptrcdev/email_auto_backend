@@ -15,19 +15,28 @@ export class WhatsAppService {
     private readonly userRepo: UserRepository,
     private readonly priorityRepo: PriorityRepository,
   ) {
-    const phoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
+    const phoneNumberId = this.configService.get<string>(
+      'WHATSAPP_PHONE_NUMBER_ID',
+    );
     this.token = this.configService.get<string>('WHATSAPP_TOKEN')!;
     this.apiUrl = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
   }
 
   async sendPriorityPrompt(user: User): Promise<void> {
     if (!user.whatsappNumber || !user.whatsappOptedIn) {
-      this.logger.warn(`User ${user.id} has no WhatsApp number or hasn't opted in`);
+      this.logger.warn(
+        `User ${user.id} has no WhatsApp number or hasn't opted in`,
+      );
       return;
     }
 
-    const templateName = this.configService.get<string>('WHATSAPP_TEMPLATE_NAME');
-    const languageCode = this.configService.get<string>('WHATSAPP_TEMPLATE_LANG', 'en');
+    const templateName = this.configService.get<string>(
+      'WHATSAPP_TEMPLATE_NAME',
+    );
+    const languageCode = this.configService.get<string>(
+      'WHATSAPP_TEMPLATE_LANG',
+      'en',
+    );
 
     try {
       const response = await fetch(this.apiUrl, {
@@ -49,13 +58,19 @@ export class WhatsAppService {
 
       if (!response.ok) {
         const error = await response.json();
-        this.logger.error(`Meta API error sending prompt to ${user.id}:`, error);
+        this.logger.error(
+          `Meta API error sending prompt to ${user.id}:`,
+          error,
+        );
         return;
       }
 
       this.logger.log(`Priority prompt sent to user ${user.id}`);
     } catch (error) {
-      this.logger.error(`Failed to send WhatsApp prompt to user ${user.id}:`, error);
+      this.logger.error(
+        `Failed to send WhatsApp prompt to user ${user.id}:`,
+        error,
+      );
     }
   }
 
@@ -129,13 +144,18 @@ export class WhatsAppService {
       deadlines?: string[];
     } = {};
 
-    const namePatterns = text.match(/\b[A-Z][a-z]+ (?:de |da |do )?[A-Z][a-z]+\b/g) || [];
+    const namePatterns =
+      text.match(/\b[A-Z][a-z]+ (?:de |da |do )?[A-Z][a-z]+\b/g) || [];
     if (namePatterns.length > 0) entities.people = namePatterns;
 
-    const projectPatterns = text.match(/(?:project|projeto|obra)\s+\w+/gi) || [];
+    const projectPatterns =
+      text.match(/(?:project|projeto|obra)\s+\w+/gi) || [];
     if (projectPatterns.length > 0) entities.projects = projectPatterns;
 
-    const deadlinePatterns = text.match(/\b(today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|hoje|amanhã|esta semana|próxima semana)\b/gi) || [];
+    const deadlinePatterns =
+      text.match(
+        /\b(today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|hoje|amanhã|esta semana|próxima semana)\b/gi,
+      ) || [];
     if (deadlinePatterns.length > 0) entities.deadlines = deadlinePatterns;
 
     return entities;

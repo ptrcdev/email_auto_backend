@@ -20,9 +20,10 @@ export class UserRepository {
     return this.repo.findOne({ where: { email } });
   }
 
-  async findByWhatsAppNumber(whatsappNumber: string): Promise<User | null> {
-    return this.repo.findOne({ where: { whatsappNumber } });
-  }
+  // WhatsApp archived — re-activate when WhatsApp integration is enabled
+  // async findByWhatsAppNumber(whatsappNumber: string): Promise<User | null> {
+  //   return this.repo.findOne({ where: { whatsappNumber } });
+  // }
 
   async findAll(): Promise<User[]> {
     return this.repo.find();

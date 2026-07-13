@@ -1,4 +1,4 @@
-import { Controller, Put, Body, Param, Get, Logger } from '@nestjs/common';
+import { Controller, Put, Get, Body, Param, Logger } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 
 @Controller('users')
@@ -17,13 +17,31 @@ export class UsersController {
     @Param('email') email: string,
     @Body()
     body: {
-      whatsappNumber?: string;
-      whatsappOptedIn?: boolean;
       digestTime?: string;
-      whatsappPromptTime?: string;
+      reminderTime?: string;
+      reminderEnabled?: boolean;
       timezone?: string;
     },
   ) {
     return this.usersService.updateOnboarding(email, body);
+  }
+
+  @Get(':email/settings')
+  async getSettings(@Param('email') email: string) {
+    return this.usersService.getSettings(email);
+  }
+
+  @Put(':email/settings')
+  async updateSettings(
+    @Param('email') email: string,
+    @Body()
+    body: {
+      digestTime?: string;
+      reminderTime?: string;
+      reminderEnabled?: boolean;
+      timezone?: string;
+    },
+  ) {
+    return this.usersService.updateSettings(email, body);
   }
 }
