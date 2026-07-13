@@ -209,10 +209,14 @@ export class CalendarService {
   private getNextDateTimeISO(hours: number, minutes: number): string {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const date = tomorrow.toISOString().split('T')[0];
-    const h = String(hours).padStart(2, '0');
-    const m = String(minutes % 60).padStart(2, '0');
-    return `${date}T${h}:${m}:00`;
+    tomorrow.setHours(hours, minutes, 0, 0);
+    // Use local ISO-like string — calendar API interprets it in the event's timeZone
+    const year = tomorrow.getFullYear();
+    const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const day = String(tomorrow.getDate()).padStart(2, '0');
+    const h = String(tomorrow.getHours()).padStart(2, '0');
+    const m = String(tomorrow.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${h}:${m}:00`;
   }
 
   private getNextDateICS(): string {
