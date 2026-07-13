@@ -6,6 +6,7 @@ import { EmailRecord } from '../entities/email-record.entity';
 import { Digest } from '../entities/digest.entity';
 import { Init1719612000000 } from './migrations/1719612000000-Init';
 import { AddReminderColumns1719612000001 } from './migrations/1719612000001-AddReminderColumns';
+import { AddCalendarEventId1719612000002 } from './migrations/1719612000002-AddCalendarEventId';
 
 config();
 
@@ -18,7 +19,7 @@ if (process.env.DATABASE_URL) {
     type: 'postgres',
     url: process.env.DATABASE_URL,
     entities: [User, Priority, EmailRecord, Digest],
-    migrations: [Init1719612000000, AddReminderColumns1719612000001],
+    migrations: [Init1719612000000, AddReminderColumns1719612000001, AddCalendarEventId1719612000002],
     synchronize: false,
     ssl: isProduction ? { rejectUnauthorized: false } : false,
   };
