@@ -38,6 +38,15 @@ export class User {
   googleTokenExpiry: Date;
 
   @Column({ nullable: true })
+  calendarAccessToken: string;
+
+  @Column({ nullable: true })
+  calendarRefreshToken: string;
+
+  @Column({ nullable: true })
+  calendarTokenExpiry: Date;
+
+  @Column({ nullable: true })
   microsoftAccessToken: string;
 
   @Column({ nullable: true })

@@ -44,9 +44,9 @@ export class CalendarService {
     const { tokens } = await oauth2Client.getToken(code);
 
     await this.userRepo.update(userId, {
-      googleAccessToken: tokens.access_token!,
-      googleRefreshToken: tokens.refresh_token || undefined,
-      googleTokenExpiry: new Date(tokens.expiry_date!),
+      calendarAccessToken: tokens.access_token!,
+      calendarRefreshToken: tokens.refresh_token || undefined,
+      calendarTokenExpiry: new Date(tokens.expiry_date!),
       calendarConnected: true,
     });
 
@@ -60,8 +60,8 @@ export class CalendarService {
         email: user.email,
         reminderTime: user.reminderTime,
         timezone: user.timezone,
-        googleAccessToken: tokens.access_token!,
-        googleRefreshToken: tokens.refresh_token || user.googleRefreshToken,
+        calendarAccessToken: tokens.access_token!,
+        calendarRefreshToken: tokens.refresh_token || user.calendarRefreshToken,
         calendarEventId: user.calendarEventId,
       });
     }
@@ -69,7 +69,7 @@ export class CalendarService {
 
   async syncDailyReminderForUser(userId: string): Promise<void> {
     const user = await this.userRepo.findById(userId);
-    if (!user || !user.calendarConnected || !user.googleAccessToken) {
+    if (!user || !user.calendarConnected || !user.calendarAccessToken) {
       return;
     }
 
@@ -78,8 +78,8 @@ export class CalendarService {
       email: user.email,
       reminderTime: user.reminderTime,
       timezone: user.timezone,
-      googleAccessToken: user.googleAccessToken,
-      googleRefreshToken: user.googleRefreshToken,
+      calendarAccessToken: user.calendarAccessToken,
+      calendarRefreshToken: user.calendarRefreshToken,
       calendarEventId: user.calendarEventId,
     });
   }
@@ -89,8 +89,8 @@ export class CalendarService {
     email: string;
     reminderTime: string;
     timezone: string;
-    googleAccessToken: string;
-    googleRefreshToken: string;
+    calendarAccessToken: string;
+    calendarRefreshToken: string;
     calendarEventId?: string;
   }): Promise<void> {
     const oauth2Client = new google.auth.OAuth2(
@@ -100,8 +100,8 @@ export class CalendarService {
     );
 
     oauth2Client.setCredentials({
-      access_token: user.googleAccessToken,
-      refresh_token: user.googleRefreshToken,
+      access_token: user.calendarAccessToken,
+      refresh_token: user.calendarRefreshToken,
     });
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
