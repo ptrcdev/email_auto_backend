@@ -60,7 +60,7 @@ export class SchedulerService {
               user.email,
               'AMICUS',
               'Time to set your priorities for tomorrow.',
-              '/prompt',
+              `/prompt?email=${encodeURIComponent(user.email)}`,
             );
           }
         }
