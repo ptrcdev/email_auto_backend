@@ -96,7 +96,7 @@ export class CalendarService {
     const oauth2Client = new google.auth.OAuth2(
       this.configService.get('GOOGLE_CLIENT_ID'),
       this.configService.get('GOOGLE_CLIENT_SECRET'),
-      this.configService.get('GOOGLE_REDIRECT_URI'),
+      this.calendarRedirectUri,
     );
 
     oauth2Client.setCredentials({
@@ -204,12 +204,6 @@ export class CalendarService {
       'END:VCALENDAR',
     ];
     return icsLines.join('\r\n');
-  }
-
-  private getNextDate(): string {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
   }
 
   private getNextDateTimeISO(hours: number, minutes: number): string {
