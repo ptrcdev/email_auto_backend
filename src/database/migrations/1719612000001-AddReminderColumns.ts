@@ -43,9 +43,17 @@ export class AddReminderColumns1719612000001 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "users" DROP COLUMN IF EXISTS "pushSubscription"`);
-    await queryRunner.query(`ALTER TABLE "users" DROP COLUMN IF EXISTS "calendarConnected"`);
-    await queryRunner.query(`ALTER TABLE "users" DROP COLUMN IF EXISTS "reminderEnabled"`);
-    await queryRunner.query(`ALTER TABLE "users" RENAME COLUMN "reminderTime" TO "whatsappPromptTime"`);
+    await queryRunner.query(
+      `ALTER TABLE "users" DROP COLUMN IF EXISTS "pushSubscription"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "users" DROP COLUMN IF EXISTS "calendarConnected"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "users" DROP COLUMN IF EXISTS "reminderEnabled"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "users" RENAME COLUMN "reminderTime" TO "whatsappPromptTime"`,
+    );
   }
 }

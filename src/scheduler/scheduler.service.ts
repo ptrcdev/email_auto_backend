@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { QueueService } from '../queue/queue.service.js';
 import { UserRepository } from '../repositories/user.repository.js';
+import { PushService } from '../push/push.service.js';
 
 @Injectable()
 export class SchedulerService {
@@ -11,6 +12,7 @@ export class SchedulerService {
   constructor(
     private readonly queueService: QueueService,
     private readonly userRepo: UserRepository,
+    private readonly pushService: PushService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -43,6 +45,24 @@ export class SchedulerService {
         if (userTime.hours === digestHour && userTime.minutes === digestMin) {
           this.logger.log(`Enqueuing digest for ${user.email}`);
           await this.queueService.enqueueDigest(user.id, today);
+        }
+
+        if (user.reminderEnabled) {
+          const [reminderHour, reminderMin] = user.reminderTime
+            .split(':')
+            .map(Number);
+          if (
+            userTime.hours === reminderHour &&
+            userTime.minutes === reminderMin
+          ) {
+            this.logger.log(`Sending priority reminder push to ${user.email}`);
+            await this.pushService.sendPush(
+              user.email,
+              'AMICUS',
+              'Time to set your priorities for tomorrow.',
+              '/prompt',
+            );
+          }
         }
       } catch (error) {
         this.logger.error(`Schedule check failed for user ${user.id}:`, error);

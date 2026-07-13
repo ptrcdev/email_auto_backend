@@ -1,11 +1,45 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { UserRepository } from '../repositories/user.repository.js';
+import { CalendarService } from '../calendar/calendar.service.js';
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly userRepo: UserRepository) {}
+  constructor(
+    private readonly userRepo: UserRepository,
+    private readonly calendarService: CalendarService,
+  ) {}
+
+  private async syncCalendarIfNeeded(
+    user: {
+      id: string;
+      calendarConnected: boolean;
+      reminderTime: string;
+      timezone: string;
+    },
+    data: { reminderTime?: string; timezone?: string },
+  ) {
+    if (!user.calendarConnected) {
+      return;
+    }
+    const reminderChanged =
+      data.reminderTime !== undefined &&
+      data.reminderTime !== user.reminderTime;
+    const timezoneChanged =
+      data.timezone !== undefined && data.timezone !== user.timezone;
+    if (!reminderChanged && !timezoneChanged) {
+      return;
+    }
+    try {
+      await this.calendarService.syncDailyReminderForUser(user.id);
+    } catch (error) {
+      this.logger.error(
+        `Failed to sync calendar reminder for user ${user.id}:`,
+        error,
+      );
+    }
+  }
 
   async getOnboardingStatus(email: string): Promise<{ isNew: boolean }> {
     const user = await this.userRepo.findByEmail(email);
@@ -32,6 +66,7 @@ export class UsersService {
     }
 
     await this.userRepo.update(user.id, data);
+    await this.syncCalendarIfNeeded(user, data);
     this.logger.log(`Onboarding preferences saved for user ${email}`);
     return { status: 'ok' };
   }
@@ -68,6 +103,7 @@ export class UsersService {
     }
 
     await this.userRepo.update(user.id, data);
+    await this.syncCalendarIfNeeded(user, data);
     this.logger.log(`Settings saved for user ${email}`);
     return { status: 'ok' };
   }

@@ -45,7 +45,13 @@ const priorityQueueFactory = {
 };
 
 @Module({
-  imports: [ConfigModule, EmailModule, ClassificationModule, DigestModule, PrioritiesModule],
+  imports: [
+    ConfigModule,
+    EmailModule,
+    ClassificationModule,
+    DigestModule,
+    PrioritiesModule,
+  ],
   providers: [
     digestQueueFactory,
     priorityQueueFactory,

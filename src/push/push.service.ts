@@ -29,7 +29,10 @@ export class PushService {
     return this.initialized;
   }
 
-  async subscribe(email: string, subscription: Record<string, unknown>): Promise<boolean> {
+  async subscribe(
+    email: string,
+    subscription: Record<string, unknown>,
+  ): Promise<boolean> {
     if (!this.initialized) return false;
 
     const user = await this.userRepo.findByEmail(email);

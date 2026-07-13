@@ -55,24 +55,43 @@ export class CalendarService {
     // Create the daily reminder event immediately after connecting
     const user = await this.userRepo.findById(userId);
     if (user) {
-      await this.createDailyReminder({
+      await this.syncDailyReminder({
         id: user.id,
         email: user.email,
         reminderTime: user.reminderTime,
         timezone: user.timezone,
         googleAccessToken: tokens.access_token!,
         googleRefreshToken: tokens.refresh_token || user.googleRefreshToken,
+        calendarEventId: user.calendarEventId,
       });
     }
   }
 
-  async createDailyReminder(user: {
+  async syncDailyReminderForUser(userId: string): Promise<void> {
+    const user = await this.userRepo.findById(userId);
+    if (!user || !user.calendarConnected || !user.googleAccessToken) {
+      return;
+    }
+
+    await this.syncDailyReminder({
+      id: user.id,
+      email: user.email,
+      reminderTime: user.reminderTime,
+      timezone: user.timezone,
+      googleAccessToken: user.googleAccessToken,
+      googleRefreshToken: user.googleRefreshToken,
+      calendarEventId: user.calendarEventId,
+    });
+  }
+
+  async syncDailyReminder(user: {
     id: string;
     email: string;
     reminderTime: string;
     timezone: string;
     googleAccessToken: string;
     googleRefreshToken: string;
+    calendarEventId?: string;
   }): Promise<void> {
     const oauth2Client = new google.auth.OAuth2(
       this.configService.get('GOOGLE_CLIENT_ID'),
@@ -87,7 +106,9 @@ export class CalendarService {
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-    const [hours, minutes] = (user.reminderTime || '18:00').split(':').map(Number);
+    const [hours, minutes] = (user.reminderTime || '18:00')
+      .split(':')
+      .map(Number);
     const startDateTime = this.getNextDateTimeISO(hours, minutes);
     const endDateTime = this.getNextDateTimeISO(hours, minutes + 15);
 
@@ -113,11 +134,42 @@ export class CalendarService {
       },
     };
 
+    // Update the existing event if we already created one for this user
+    if (user.calendarEventId) {
+      try {
+        await calendar.events.update({
+          calendarId: 'primary',
+          eventId: user.calendarEventId,
+          requestBody: event,
+        });
+        this.logger.log(`Daily reminder updated for user ${user.email}`);
+        return;
+      } catch (error) {
+        // If the event was deleted on the calendar, fall through and recreate it
+        const err = error as { code?: number; response?: { status?: number } };
+        if (err?.code !== 404 && err?.response?.status !== 404) {
+          this.logger.error(
+            `Failed to update calendar event for ${user.email}:`,
+            error,
+          );
+          return;
+        }
+        this.logger.warn(
+          `Calendar event ${user.calendarEventId} missing for ${user.email}, recreating`,
+        );
+      }
+    }
+
     try {
-      await calendar.events.insert({
+      const created = await calendar.events.insert({
         calendarId: 'primary',
         requestBody: event,
       });
+      if (created.data.id) {
+        await this.userRepo.update(user.id, {
+          calendarEventId: created.data.id,
+        });
+      }
       this.logger.log(`Daily reminder created for user ${user.email}`);
     } catch (error) {
       this.logger.error(

@@ -13,10 +13,7 @@ export class CalendarController {
   ) {}
 
   @Get('connect/:userId')
-  async connectCalendar(
-    @Param('userId') userId: string,
-    @Res() res: Response,
-  ) {
+  async connectCalendar(@Param('userId') userId: string, @Res() res: Response) {
     // Frontend may pass an email address instead of a UUID — resolve to UUID first
     let resolvedId = userId;
     if (userId.includes('@')) {

@@ -61,6 +61,9 @@ export class User {
   @Column({ default: false })
   calendarConnected: boolean;
 
+  @Column({ nullable: true })
+  calendarEventId: string;
+
   @Column({ type: 'json', nullable: true })
   pushSubscription: Record<string, any> | null;
 
