@@ -47,7 +47,7 @@ export async function llmWithFallback<T>(
         if (isFallbackableError(error)) {
           // Model unavailable / quota hit — skip remaining retries, try next model
           logger.warn(
-            `Model ${model} returned ${(error as OpenAI.APIError).status} — falling back to next model`,
+            `Model ${model} returned ${(error as InstanceType<typeof OpenAI.APIError>).status} — falling back to next model`,
           );
           break;
         }
