@@ -203,7 +203,7 @@ Rules:
         },
         this.logger,
       );
-      return JSON.parse(content);
+      return JSON.parse(this.repairJson(content));
     } catch (error) {
       this.logger.error('Failed to extract search intent:', error);
       return {
@@ -274,7 +274,7 @@ Rules:
       this.logger,
     );
 
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(this.repairJson(content));
     const answerEmailId = String(parsed.answerEmailId || '');
     const relatedEmailIds = Array.isArray(parsed.relatedEmailIds)
       ? parsed.relatedEmailIds.map(String)
@@ -324,6 +324,55 @@ Rules:
         return overlap >= 2;
       })
       .slice(0, 8);
+  }
+
+  /**
+   * Attempts to recover a truncated JSON string by closing any open
+   * braces/brackets and stripping trailing incomplete key-value pairs.
+   * Falls back to '{}' if the result still won't parse.
+   */
+  private repairJson(raw: string): string {
+    // Strip markdown code fences if present
+    const stripped = raw.replace(/^```[a-z]*\n?/i, '').replace(/```$/i, '').trim();
+
+    // If it already parses, nothing to do
+    try {
+      JSON.parse(stripped);
+      return stripped;
+    } catch {
+      // fall through to repair
+    }
+
+    // Truncate at the last complete value by finding the last full property boundary.
+    // Walk backwards and close open structures.
+    const stack: string[] = [];
+    let inString = false;
+    let escape = false;
+
+    for (const ch of stripped) {
+      if (escape) { escape = false; continue; }
+      if (ch === '\\' && inString) { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{' || ch === '[') stack.push(ch);
+      else if (ch === '}' || ch === ']') stack.pop();
+    }
+
+    // Close open structures in reverse
+    let repaired = stripped;
+    // Remove any trailing incomplete token (e.g. partial string or key without value)
+    repaired = repaired.replace(/,?\s*"[^"]*$/, '').replace(/,\s*$/, '');
+
+    for (let i = stack.length - 1; i >= 0; i--) {
+      repaired += stack[i] === '{' ? '}' : ']';
+    }
+
+    try {
+      JSON.parse(repaired);
+      return repaired;
+    } catch {
+      return '{}';
+    }
   }
 
   private buildInterpretation(

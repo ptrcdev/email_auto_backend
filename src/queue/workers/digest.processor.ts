@@ -80,8 +80,6 @@ export class DigestProcessor implements OnModuleInit, OnModuleDestroy {
       return { success: true, skipped: true };
     }
 
-    await this.emailService.saveEmailRecords(userId, rawEmails);
-
     const activePriorities = await this.priorityRepo.findActiveForUser(userId);
 
     const classifications = await this.classificationService.classifyEmails(

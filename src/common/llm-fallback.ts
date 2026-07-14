@@ -77,8 +77,9 @@ export async function llmWithFallback<T>(
  */
 export const DEFAULT_MODEL_CHAIN = [
   'meta-llama/llama-3.3-70b-instruct:free',
-  'nvidia/nemotron-super-49b-v1:free',
-  'openrouter/auto',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'openrouter/free',
 ];
 
 /**
