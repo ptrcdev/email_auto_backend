@@ -69,21 +69,26 @@ export class ClassificationService {
   private async classifyOne(
     email: RawEmail,
     priorityContext: string,
+    retries = 3,
   ): Promise<ClassificationResult> {
-    const response = await this.openai.chat.completions.create({
-      model: this.configService.get<string>(
-        'LLM_MODEL',
-        'anthropic/claude-sonnet-4-20250514',
-      ),
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: `You are an email classifier for a busy real estate/construction professional. Classify emails and extract key information. Always respond with valid JSON matching the required schema.`,
-        },
-        {
-          role: 'user',
-          content: `Classify this email:
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await this.openai.chat.completions.create({
+          model: this.configService.get<string>(
+            'LLM_MODEL',
+            'nvidia/nemotron-3-ultra-550b-a55b:free',
+          ),
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: `You are an email classifier for a busy real estate/construction professional. Classify emails and extract key information. Always respond with valid JSON matching the required schema.`,
+            },
+            {
+              role: 'user',
+              content: `Classify this email:
 
 From: ${email.sender}
 Subject: ${email.subject}
@@ -109,33 +114,46 @@ Classification rules:
 - "low_priority": informational, newsletters, FYI, no action needed
 
 Prioritize user's stated priorities. If an email matches someone or something the user mentioned, it's more likely urgent.`,
-        },
-      ],
-    });
+            },
+          ],
+        });
 
-    const content = response.choices[0]?.message?.content || '{}';
-    const parsed: {
-      category?: string;
-      summary?: string;
-      suggestedAction?: string;
-      extractedFields?: {
-        amount?: string;
-        projectName?: string;
-        deadline?: string;
-        senderRole?: string;
-      };
-    } = JSON.parse(content);
+        const content = response.choices[0]?.message?.content || '{}';
+        const parsed: {
+          category?: string;
+          summary?: string;
+          suggestedAction?: string;
+          extractedFields?: {
+            amount?: string;
+            projectName?: string;
+            deadline?: string;
+            senderRole?: string;
+          };
+        } = JSON.parse(content);
 
-    return {
-      category: (parsed.category || 'low_priority') as EmailCategory,
-      summary: parsed.summary || email.subject,
-      suggestedAction: parsed.suggestedAction || 'no action',
-      extractedFields: {
-        amount: parsed.extractedFields?.amount || undefined,
-        projectName: parsed.extractedFields?.projectName || undefined,
-        deadline: parsed.extractedFields?.deadline || undefined,
-        senderRole: parsed.extractedFields?.senderRole || undefined,
-      },
-    };
+        return {
+          category: (parsed.category || 'low_priority') as EmailCategory,
+          summary: parsed.summary || email.subject,
+          suggestedAction: parsed.suggestedAction || 'no action',
+          extractedFields: {
+            amount: parsed.extractedFields?.amount || undefined,
+            projectName: parsed.extractedFields?.projectName || undefined,
+            deadline: parsed.extractedFields?.deadline || undefined,
+            senderRole: parsed.extractedFields?.senderRole || undefined,
+          },
+        };
+      } catch (error) {
+        lastError = error as Error;
+        if (attempt < retries) {
+          const delay = Math.pow(2, attempt) * 1000;
+          this.logger.warn(
+            `Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    throw lastError;
   }
 }

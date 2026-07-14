@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddPermanentAndImportantSenders1719612000004
-  implements MigrationInterface
-{
+export class AddPermanentAndImportantSenders1719612000004 implements MigrationInterface {
   name = 'AddPermanentAndImportantSenders1719612000004';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -94,10 +94,7 @@ export class PrioritiesController {
   }
 
   @Delete(':email/:id')
-  async deletePriority(
-    @Param('email') email: string,
-    @Param('id') id: string,
-  ) {
+  async deletePriority(@Param('email') email: string, @Param('id') id: string) {
     const result = await this.prioritiesService.deletePriority(email, id);
     if (!result) {
       return { error: 'User not found' };

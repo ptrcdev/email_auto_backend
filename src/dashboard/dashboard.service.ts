@@ -97,7 +97,10 @@ export class DashboardService {
 
     if (candidates.length > 0) {
       try {
-        const selection = await this.selectAnswer(query, candidates.slice(0, 40));
+        const selection = await this.selectAnswer(
+          query,
+          candidates.slice(0, 40),
+        );
         answer =
           candidates.find((c) => c.id === selection.answerEmailId) || null;
         related = candidates.filter(
@@ -117,7 +120,13 @@ export class DashboardService {
       }
     }
 
-    return { answer, related, results: candidates, interpretation, explanation };
+    return {
+      answer,
+      related,
+      results: candidates,
+      interpretation,
+      explanation,
+    };
   }
 
   async getStats(email: string): Promise<{
@@ -149,7 +158,7 @@ export class DashboardService {
       const response = await this.openai.chat.completions.create({
         model: this.configService.get<string>(
           'LLM_MODEL',
-          'anthropic/claude-sonnet-4-20250514',
+          'nvidia/nemotron-3-ultra-550b-a55b:free',
         ),
         response_format: { type: 'json_object' },
         messages: [
@@ -200,7 +209,11 @@ Rules:
   private async selectAnswer(
     query: string,
     candidates: EmailRecord[],
-  ): Promise<{ answerEmailId: string; relatedEmailIds: string[]; explanation: string }> {
+  ): Promise<{
+    answerEmailId: string;
+    relatedEmailIds: string[];
+    explanation: string;
+  }> {
     const compact = candidates
       .map((e, i) => {
         const date = new Date(e.receivedAt).toISOString().split('T')[0];
@@ -215,7 +228,7 @@ Rules:
     const response = await this.openai.chat.completions.create({
       model: this.configService.get<string>(
         'LLM_MODEL',
-        'anthropic/claude-sonnet-4-20250514',
+        'nvidia/nemotron-3-ultra-550b-a55b:free',
       ),
       response_format: { type: 'json_object' },
       messages: [
@@ -286,7 +299,10 @@ Rules:
     return candidates
       .filter((c) => c.id !== answer.id)
       .filter((c) => {
-        if (answerTopic && c.extractedFields?.projectName?.toLowerCase() === answerTopic) {
+        if (
+          answerTopic &&
+          c.extractedFields?.projectName?.toLowerCase() === answerTopic
+        ) {
           return true;
         }
         const text = `${c.subject} ${c.summary || ''}`.toLowerCase();

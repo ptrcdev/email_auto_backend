@@ -15,7 +15,7 @@ describe('ClassificationService', () => {
             get: jest.fn((key: string) => {
               if (key === 'OPENROUTER_API_KEY') return 'test-key';
               if (key === 'LLM_MODEL')
-                return 'anthropic/claude-sonnet-4-20250514';
+                return 'nvidia/nemotron-3-ultra-550b-a55b:free';
               return undefined;
             }),
           },
