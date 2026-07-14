@@ -5,13 +5,17 @@ import { UserRepository } from '../repositories/user.repository.js';
 import { EmailRecordRepository } from '../repositories/email-record.repository.js';
 import { EmailRecord, EmailCategory } from '../entities/email-record.entity.js';
 
-export interface SearchResult {
-  emails: EmailRecord[];
+export interface IntelligentSearchResult {
+  answer: EmailRecord | null;
+  related: EmailRecord[];
+  results: EmailRecord[];
   interpretation: string;
+  explanation: string;
 }
 
 interface ExtractedSearchIntent {
   keywords: string[];
+  topic: string | null;
   senderRole: string | null;
   dateRange: { start: string | null; end: string | null };
 }
@@ -59,13 +63,21 @@ export class DashboardService {
     return sorted;
   }
 
-  async search(email: string, query: string): Promise<SearchResult> {
+  async search(email: string, query: string): Promise<IntelligentSearchResult> {
     const user = await this.userRepo.findByEmail(email);
-    if (!user) return { emails: [], interpretation: 'User not found' };
+    if (!user) {
+      return {
+        answer: null,
+        related: [],
+        results: [],
+        interpretation: 'User not found',
+        explanation: '',
+      };
+    }
 
     const intent = await this.extractIntent(query);
 
-    const emails = await this.emailRecordRepo.searchEmails(
+    const candidates = await this.emailRecordRepo.searchEmails(
       user.id,
       intent.keywords,
       intent.senderRole,
@@ -76,10 +88,36 @@ export class DashboardService {
     const interpretation = this.buildInterpretation(
       query,
       intent,
-      emails.length,
+      candidates.length,
     );
 
-    return { emails, interpretation };
+    let answer: EmailRecord | null = null;
+    let related: EmailRecord[] = [];
+    let explanation = '';
+
+    if (candidates.length > 0) {
+      try {
+        const selection = await this.selectAnswer(query, candidates.slice(0, 40));
+        answer =
+          candidates.find((c) => c.id === selection.answerEmailId) || null;
+        related = candidates.filter(
+          (c) =>
+            selection.relatedEmailIds.includes(c.id) &&
+            c.id !== (answer?.id ?? null),
+        );
+        explanation = selection.explanation || '';
+      } catch (error) {
+        this.logger.error('AI answer selection failed, using fallback:', error);
+        answer = this.fallbackAnswer(candidates, intent);
+        related = this.fallbackRelated(candidates, answer, intent);
+      }
+      if (!answer) {
+        answer = candidates[0];
+        related = candidates.slice(1, 6);
+      }
+    }
+
+    return { answer, related, results: candidates, interpretation, explanation };
   }
 
   async getStats(email: string): Promise<{
@@ -128,6 +166,7 @@ export class DashboardService {
 Respond with a JSON object:
 {
   "keywords": ["array", "of", "search", "terms"],
+  "topic": "short topic/project phrase the question is about (e.g. 'Forest property', 'loan refinance') or null",
   "senderRole": "role if mentioned (e.g. lawyer, architect, contractor, bank) or null",
   "dateRange": {
     "start": "YYYY-MM-DD or null if not specified",
@@ -137,6 +176,7 @@ Respond with a JSON object:
 
 Rules:
 - Extract meaningful keywords (nouns, names, topics) — skip common words
+- topic should capture the specific subject the user is asking about
 - If the user says "last week", calculate the date range relative to today
 - If no time reference, set both dates to null
 - senderRole should match the extractedFields.senderRole pattern (lawyer, architect, contractor, bank, municipality, etc.)`,
@@ -150,10 +190,110 @@ Rules:
       this.logger.error('Failed to extract search intent:', error);
       return {
         keywords: query.split(/\s+/),
+        topic: null,
         senderRole: null,
         dateRange: { start: null, end: null },
       };
     }
+  }
+
+  private async selectAnswer(
+    query: string,
+    candidates: EmailRecord[],
+  ): Promise<{ answerEmailId: string; relatedEmailIds: string[]; explanation: string }> {
+    const compact = candidates
+      .map((e, i) => {
+        const date = new Date(e.receivedAt).toISOString().split('T')[0];
+        const project = e.extractedFields?.projectName
+          ? ` | project: ${e.extractedFields.projectName}`
+          : '';
+        const summary = e.summary ? ` | ${e.summary}` : '';
+        return `${i + 1}. [${e.id}] ${e.subject} | from ${e.sender} on ${date} (${e.category})${project}${summary}`;
+      })
+      .join('\n');
+
+    const response = await this.openai.chat.completions.create({
+      model: this.configService.get<string>(
+        'LLM_MODEL',
+        'anthropic/claude-sonnet-4-20250514',
+      ),
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `You are an email search ranker. Given a user's question and a list of candidate emails, pick the single best email that directly answers the question (e.g. the specific event the user asked about, such as when a deal closed). Then list related emails that are about the same topic or project even if less directly relevant. Always respond with valid JSON.`,
+        },
+        {
+          role: 'user',
+          content: `Question: "${query}"
+
+Candidate emails:
+${compact}
+
+Respond with a JSON object:
+{
+  "answerEmailId": "<id of the single best email that answers the question>",
+  "relatedEmailIds": ["<ids of other emails on the same topic/project>", "..."],
+  "explanation": "<one short sentence explaining the choice>"
+}
+
+Rules:
+- answerEmailId must be one of the provided [id] values
+- relatedEmailIds must NOT include the answerEmailId
+- If nothing matches well, set answerEmailId to the closest candidate and relatedEmailIds to []
+- Only use ids from the candidate list`,
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(content);
+    const answerEmailId = String(parsed.answerEmailId || '');
+    const relatedEmailIds = Array.isArray(parsed.relatedEmailIds)
+      ? parsed.relatedEmailIds.map(String)
+      : [];
+    return {
+      answerEmailId,
+      relatedEmailIds,
+      explanation: parsed.explanation || '',
+    };
+  }
+
+  private fallbackAnswer(
+    candidates: EmailRecord[],
+    intent: ExtractedSearchIntent,
+  ): EmailRecord {
+    if (intent.topic) {
+      const byTopic = candidates.find(
+        (c) =>
+          c.extractedFields?.projectName &&
+          c.extractedFields.projectName
+            .toLowerCase()
+            .includes(intent.topic!.toLowerCase()),
+      );
+      if (byTopic) return byTopic;
+    }
+    return candidates[0];
+  }
+
+  private fallbackRelated(
+    candidates: EmailRecord[],
+    answer: EmailRecord,
+    intent: ExtractedSearchIntent,
+  ): EmailRecord[] {
+    const answerTopic = answer.extractedFields?.projectName?.toLowerCase();
+    const keywords = (intent.keywords || []).map((k) => k.toLowerCase());
+    return candidates
+      .filter((c) => c.id !== answer.id)
+      .filter((c) => {
+        if (answerTopic && c.extractedFields?.projectName?.toLowerCase() === answerTopic) {
+          return true;
+        }
+        const text = `${c.subject} ${c.summary || ''}`.toLowerCase();
+        const overlap = keywords.filter((k) => text.includes(k)).length;
+        return overlap >= 2;
+      })
+      .slice(0, 8);
   }
 
   private buildInterpretation(

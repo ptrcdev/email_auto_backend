@@ -8,6 +8,7 @@ import { Init1719612000000 } from './migrations/1719612000000-Init';
 import { AddReminderColumns1719612000001 } from './migrations/1719612000001-AddReminderColumns';
 import { AddCalendarTokenColumns1719612000003 } from './migrations/1719612000003-AddCalendarTokenColumns';
 import { AddCalendarEventId1719612000002 } from './migrations/1719612000002-AddCalendarEventId';
+import { AddPermanentAndImportantSenders1719612000004 } from './migrations/1719612000004-AddPermanentAndImportantSenders';
 
 config();
 
@@ -20,7 +21,7 @@ if (process.env.DATABASE_URL) {
     type: 'postgres',
     url: process.env.DATABASE_URL,
     entities: [User, Priority, EmailRecord, Digest],
-    migrations: [Init1719612000000, AddReminderColumns1719612000001, AddCalendarEventId1719612000002, AddCalendarTokenColumns1719612000003],
+    migrations: [Init1719612000000, AddReminderColumns1719612000001, AddCalendarEventId1719612000002, AddCalendarTokenColumns1719612000003, AddPermanentAndImportantSenders1719612000004],
     synchronize: false,
     ssl: isProduction ? { rejectUnauthorized: false } : false,
   };

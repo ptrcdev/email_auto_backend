@@ -30,6 +30,54 @@ export class PriorityRepository {
     return this.repo.save(priority);
   }
 
+  async findDailyForUser(userId: string): Promise<Priority[]> {
+    const now = new Date();
+    return this.repo
+      .find({
+        where: {
+          userId,
+          active: true,
+          permanent: false,
+        },
+        order: { createdAt: 'DESC' },
+      })
+      .then((priorities) =>
+        priorities.filter((p) => !p.expiresAt || p.expiresAt > now),
+      );
+  }
+
+  async findPermanentForUser(userId: string): Promise<Priority[]> {
+    return this.repo.find({
+      where: {
+        userId,
+        active: true,
+        permanent: true,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async deactivateById(userId: string, id: string): Promise<void> {
+    await this.repo
+      .createQueryBuilder()
+      .update(Priority)
+      .set({ active: false })
+      .where('userId = :userId', { userId })
+      .andWhere('id = :id', { id })
+      .andWhere('permanent = :permanent', { permanent: true })
+      .execute();
+  }
+
+  async deactivateAnyById(userId: string, id: string): Promise<void> {
+    await this.repo
+      .createQueryBuilder()
+      .update(Priority)
+      .set({ active: false })
+      .where('userId = :userId', { userId })
+      .andWhere('id = :id', { id })
+      .execute();
+  }
+
   async deactivateExpired(): Promise<void> {
     await this.repo
       .createQueryBuilder()

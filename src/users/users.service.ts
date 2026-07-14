@@ -58,6 +58,7 @@ export class UsersService {
       reminderTime?: string;
       reminderEnabled?: boolean;
       timezone?: string;
+      importantSenders?: string[];
     },
   ) {
     const user = await this.userRepo.findByEmail(email);
@@ -85,6 +86,7 @@ export class UsersService {
       timezone: user.timezone,
       calendarConnected: user.calendarConnected,
       pushSubscription: user.pushSubscription,
+      importantSenders: user.importantSenders || [],
     };
   }
 
@@ -95,6 +97,7 @@ export class UsersService {
       reminderTime?: string;
       reminderEnabled?: boolean;
       timezone?: string;
+      importantSenders?: string[];
     },
   ) {
     const user = await this.userRepo.findByEmail(email);

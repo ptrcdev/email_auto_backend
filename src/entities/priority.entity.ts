@@ -34,8 +34,11 @@ export class Priority {
   @Column({ default: true })
   active: boolean;
 
-  @Column({ nullable: true })
-  expiresAt: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  expiresAt: Date | null;
+
+  @Column({ default: false })
+  permanent: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

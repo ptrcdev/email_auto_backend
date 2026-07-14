@@ -82,6 +82,9 @@ export class User {
   @Column({ default: 3 })
   priorityDecayDays: number;
 
+  @Column({ type: 'json', nullable: true })
+  importantSenders: string[] | null;
+
   @OneToMany(() => Priority, (priority) => priority.user)
   priorities: Priority[];
 

@@ -32,6 +32,7 @@ export class ClassificationService {
   async classifyEmails(
     emails: RawEmail[],
     priorities: Priority[],
+    importantSenders: string[] = [],
   ): Promise<Map<string, ClassificationResult>> {
     const results = new Map<string, ClassificationResult>();
 
@@ -40,9 +41,16 @@ export class ClassificationService {
         ? `\n\nUser's stated priorities for tomorrow:\n${priorities.map((p) => `- "${p.rawText}"`).join('\n')}`
         : '';
 
+    const senderContext =
+      importantSenders.length > 0
+        ? `\n\nImportant senders to watch for (flag their emails even if not tied to a priority):\n${importantSenders.map((s) => `- "${s}"`).join('\n')}`
+        : '';
+
+    const extraContext = `${priorityContext}${senderContext}`;
+
     for (const email of emails) {
       try {
-        const result = await this.classifyOne(email, priorityContext);
+        const result = await this.classifyOne(email, extraContext);
         results.set(email.id, result);
       } catch (error) {
         this.logger.error(`Failed to classify email ${email.id}:`, error);

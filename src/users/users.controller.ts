@@ -21,6 +21,7 @@ export class UsersController {
       reminderTime?: string;
       reminderEnabled?: boolean;
       timezone?: string;
+      importantSenders?: string[];
     },
   ) {
     return this.usersService.updateOnboarding(email, body);
@@ -40,6 +41,7 @@ export class UsersController {
       reminderTime?: string;
       reminderEnabled?: boolean;
       timezone?: string;
+      importantSenders?: string[];
     },
   ) {
     return this.usersService.updateSettings(email, body);
