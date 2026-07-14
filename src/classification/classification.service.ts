@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { EmailCategory } from '../entities/email-record.entity.js';
 import { RawEmail } from '../email/email.service.js';
 import { Priority } from '../entities/priority.entity.js';
+import { llmWithFallback, resolveModelChain } from '../common/llm-fallback.js';
 
 export interface ClassificationResult {
   category: EmailCategory;
@@ -21,12 +22,16 @@ export interface ClassificationResult {
 export class ClassificationService {
   private readonly logger = new Logger(ClassificationService.name);
   private openai: OpenAI;
+  private modelChain: string[];
 
   constructor(private readonly configService: ConfigService) {
     this.openai = new OpenAI({
       baseURL: 'https://openrouter.ai/api/v1',
       apiKey: configService.get<string>('OPENROUTER_API_KEY'),
     });
+    this.modelChain = resolveModelChain(
+      configService.get<string>('LLM_MODELS'),
+    );
   }
 
   async classifyEmails(
@@ -69,26 +74,15 @@ export class ClassificationService {
   private async classifyOne(
     email: RawEmail,
     priorityContext: string,
-    retries = 3,
   ): Promise<ClassificationResult> {
-    let lastError: Error | undefined;
-
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        const response = await this.openai.chat.completions.create({
-          model: this.configService.get<string>(
-            'LLM_MODEL',
-            'nvidia/nemotron-3-ultra-550b-a55b:free',
-          ),
-          response_format: { type: 'json_object' },
-          messages: [
-            {
-              role: 'system',
-              content: `You are an email classifier for a busy real estate/construction professional. Classify emails and extract key information. Always respond with valid JSON matching the required schema.`,
-            },
-            {
-              role: 'user',
-              content: `Classify this email:
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      {
+        role: 'system',
+        content: `You are an email classifier for a busy real estate/construction professional. Classify emails and extract key information. Always respond with valid JSON matching the required schema.`,
+      },
+      {
+        role: 'user',
+        content: `Classify this email:
 
 From: ${email.sender}
 Subject: ${email.subject}
@@ -114,46 +108,44 @@ Classification rules:
 - "low_priority": informational, newsletters, FYI, no action needed
 
 Prioritize user's stated priorities. If an email matches someone or something the user mentioned, it's more likely urgent.`,
-            },
-          ],
+      },
+    ];
+
+    const content = await llmWithFallback(
+      this.modelChain,
+      async (model) => {
+        const response = await this.openai.chat.completions.create({
+          model,
+          response_format: { type: 'json_object' },
+          messages,
         });
+        return response.choices[0]?.message?.content || '{}';
+      },
+      this.logger,
+    );
 
-        const content = response.choices[0]?.message?.content || '{}';
-        const parsed: {
-          category?: string;
-          summary?: string;
-          suggestedAction?: string;
-          extractedFields?: {
-            amount?: string;
-            projectName?: string;
-            deadline?: string;
-            senderRole?: string;
-          };
-        } = JSON.parse(content);
+    const parsed: {
+      category?: string;
+      summary?: string;
+      suggestedAction?: string;
+      extractedFields?: {
+        amount?: string;
+        projectName?: string;
+        deadline?: string;
+        senderRole?: string;
+      };
+    } = JSON.parse(content);
 
-        return {
-          category: (parsed.category || 'low_priority') as EmailCategory,
-          summary: parsed.summary || email.subject,
-          suggestedAction: parsed.suggestedAction || 'no action',
-          extractedFields: {
-            amount: parsed.extractedFields?.amount || undefined,
-            projectName: parsed.extractedFields?.projectName || undefined,
-            deadline: parsed.extractedFields?.deadline || undefined,
-            senderRole: parsed.extractedFields?.senderRole || undefined,
-          },
-        };
-      } catch (error) {
-        lastError = error as Error;
-        if (attempt < retries) {
-          const delay = Math.pow(2, attempt) * 1000;
-          this.logger.warn(
-            `Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-      }
-    }
-
-    throw lastError;
+    return {
+      category: (parsed.category || 'low_priority') as EmailCategory,
+      summary: parsed.summary || email.subject,
+      suggestedAction: parsed.suggestedAction || 'no action',
+      extractedFields: {
+        amount: parsed.extractedFields?.amount || undefined,
+        projectName: parsed.extractedFields?.projectName || undefined,
+        deadline: parsed.extractedFields?.deadline || undefined,
+        senderRole: parsed.extractedFields?.senderRole || undefined,
+      },
+    };
   }
 }

@@ -14,8 +14,8 @@ describe('ClassificationService', () => {
           useValue: {
             get: jest.fn((key: string) => {
               if (key === 'OPENROUTER_API_KEY') return 'test-key';
-              if (key === 'LLM_MODEL')
-                return 'nvidia/nemotron-3-ultra-550b-a55b:free';
+              if (key === 'LLM_MODELS')
+                return 'meta-llama/llama-3.3-70b-instruct:free';
               return undefined;
             }),
           },

@@ -3,7 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { UserRepository } from '../repositories/user.repository.js';
 import { EmailRecordRepository } from '../repositories/email-record.repository.js';
-import { EmailRecord, EmailCategory } from '../entities/email-record.entity.js';
+import { EmailRecord } from '../entities/email-record.entity.js';
+import { llmWithFallback, resolveModelChain } from '../common/llm-fallback.js';
 
 export interface IntelligentSearchResult {
   answer: EmailRecord | null;
@@ -24,6 +25,7 @@ interface ExtractedSearchIntent {
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
   private openai: OpenAI;
+  private modelChain: string[];
 
   constructor(
     private readonly configService: ConfigService,
@@ -34,6 +36,9 @@ export class DashboardService {
       baseURL: 'https://openrouter.ai/api/v1',
       apiKey: configService.get<string>('OPENROUTER_API_KEY'),
     });
+    this.modelChain = resolveModelChain(
+      configService.get<string>('LLM_MODELS'),
+    );
   }
 
   async getEmails_groupedByDay(
@@ -154,21 +159,14 @@ export class DashboardService {
   }
 
   private async extractIntent(query: string): Promise<ExtractedSearchIntent> {
-    try {
-      const response = await this.openai.chat.completions.create({
-        model: this.configService.get<string>(
-          'LLM_MODEL',
-          'nvidia/nemotron-3-ultra-550b-a55b:free',
-        ),
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: `You are a search intent extractor. Given a user's natural language query about their emails, extract search parameters. Always respond with valid JSON.`,
-          },
-          {
-            role: 'user',
-            content: `Extract search intent from this query:
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      {
+        role: 'system',
+        content: `You are a search intent extractor. Given a user's natural language query about their emails, extract search parameters. Always respond with valid JSON.`,
+      },
+      {
+        role: 'user',
+        content: `Extract search intent from this query:
 
 "${query}"
 
@@ -189,11 +187,22 @@ Rules:
 - If the user says "last week", calculate the date range relative to today
 - If no time reference, set both dates to null
 - senderRole should match the extractedFields.senderRole pattern (lawyer, architect, contractor, bank, municipality, etc.)`,
-          },
-        ],
-      });
+      },
+    ];
 
-      const content = response.choices[0]?.message?.content || '{}';
+    try {
+      const content = await llmWithFallback(
+        this.modelChain,
+        async (model) => {
+          const response = await this.openai.chat.completions.create({
+            model,
+            response_format: { type: 'json_object' },
+            messages,
+          });
+          return response.choices[0]?.message?.content || '{}';
+        },
+        this.logger,
+      );
       return JSON.parse(content);
     } catch (error) {
       this.logger.error('Failed to extract search intent:', error);
@@ -225,20 +234,14 @@ Rules:
       })
       .join('\n');
 
-    const response = await this.openai.chat.completions.create({
-      model: this.configService.get<string>(
-        'LLM_MODEL',
-        'nvidia/nemotron-3-ultra-550b-a55b:free',
-      ),
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: `You are an email search ranker. Given a user's question and a list of candidate emails, pick the single best email that directly answers the question (e.g. the specific event the user asked about, such as when a deal closed). Then list related emails that are about the same topic or project even if less directly relevant. Always respond with valid JSON.`,
-        },
-        {
-          role: 'user',
-          content: `Question: "${query}"
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      {
+        role: 'system',
+        content: `You are an email search ranker. Given a user's question and a list of candidate emails, pick the single best email that directly answers the question (e.g. the specific event the user asked about, such as when a deal closed). Then list related emails that are about the same topic or project even if less directly relevant. Always respond with valid JSON.`,
+      },
+      {
+        role: 'user',
+        content: `Question: "${query}"
 
 Candidate emails:
 ${compact}
@@ -255,11 +258,22 @@ Rules:
 - relatedEmailIds must NOT include the answerEmailId
 - If nothing matches well, set answerEmailId to the closest candidate and relatedEmailIds to []
 - Only use ids from the candidate list`,
-        },
-      ],
-    });
+      },
+    ];
 
-    const content = response.choices[0]?.message?.content || '{}';
+    const content = await llmWithFallback(
+      this.modelChain,
+      async (model) => {
+        const response = await this.openai.chat.completions.create({
+          model,
+          response_format: { type: 'json_object' },
+          messages,
+        });
+        return response.choices[0]?.message?.content || '{}';
+      },
+      this.logger,
+    );
+
     const parsed = JSON.parse(content);
     const answerEmailId = String(parsed.answerEmailId || '');
     const relatedEmailIds = Array.isArray(parsed.relatedEmailIds)
