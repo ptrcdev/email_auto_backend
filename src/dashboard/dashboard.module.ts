@@ -6,9 +6,11 @@ import { UserRepository } from '../repositories/user.repository.js';
 import { EmailRecordRepository } from '../repositories/email-record.repository.js';
 import { User } from '../entities/user.entity.js';
 import { EmailRecord } from '../entities/email-record.entity.js';
+import { Digest } from '../entities/digest.entity.js';
+import { Priority } from '../entities/priority.entity.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, EmailRecord])],
+  imports: [TypeOrmModule.forFeature([User, EmailRecord, Digest, Priority])],
   controllers: [DashboardController],
   providers: [DashboardService, UserRepository, EmailRecordRepository],
 })

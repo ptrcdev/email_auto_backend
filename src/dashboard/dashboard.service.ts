@@ -41,31 +41,83 @@ export class DashboardService {
     );
   }
 
-  async getEmails_groupedByDay(
-    email: string,
-    days: number = 30,
-  ): Promise<Record<string, EmailRecord[]>> {
+  async getDailyBriefs(email: string, from?: string, to?: string) {
     const user = await this.userRepo.findByEmail(email);
-    if (!user) return {};
+    if (!user) return [];
 
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const fromDate = from ? new Date(`${from}T00:00:00.000Z`) : undefined;
+    const toDate = to ? new Date(`${to}T23:59:59.999Z`) : undefined;
 
-    const emails = await this.emailRecordRepo.findByUserSince(user.id, since);
+    const dates = await this.emailRecordRepo.findDistinctDatesForUser(
+      user.id,
+      fromDate,
+      toDate,
+    );
 
-    const grouped: Record<string, EmailRecord[]> = {};
-    for (const e of emails) {
-      const dateKey = e.receivedAt.toISOString().split('T')[0];
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(e);
-    }
+    const briefs = await Promise.all(
+      dates.map((date) => this.buildDailyBriefForDate(user, date)),
+    );
 
-    const sortedKeys = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-    const sorted: Record<string, EmailRecord[]> = {};
-    for (const key of sortedKeys) {
-      sorted[key] = grouped[key];
-    }
-    return sorted;
+    return briefs;
+  }
+
+  async getDailyBriefForDate(email: string, date: string) {
+    const user = await this.userRepo.findByEmail(email);
+    if (!user) return null;
+
+    return this.buildDailyBriefForDate(user, date);
+  }
+
+  private async buildDailyBriefForDate(
+    user: { id: string; name?: string; preferredName?: string; timezone?: string; email: string },
+    date: string,
+  ) {
+    const emails = await this.emailRecordRepo.findByUserForDate(user.id, date);
+
+    const highPriority = emails.filter((e) => e.category === 'urgent');
+    const needsReply = emails.filter((e) => e.suggestedAction === 'reply');
+    const meetings = emails.filter((e) => e.extractedFields?.deadline);
+    const finance = emails.filter((e) => e.extractedFields?.amount);
+    const updates = emails.filter((e) => e.category === 'low_priority');
+
+    const urgentCount = highPriority.length;
+    const needsReviewCount = emails.filter(
+      (e) => e.category === 'needs_review',
+    ).length;
+    const lowPriorityCount = updates.length;
+
+    const summary = emails
+      .sort((a, b) => {
+        const order = { urgent: 0, needs_review: 1, low_priority: 2 };
+        return (order[a.category] ?? 3) - (order[b.category] ?? 3);
+      })
+      .slice(0, 5)
+      .map((e) => e.summary || e.subject);
+
+    const name = user.preferredName || user.name || user.email.split('@')[0];
+    const greeting = this.buildGreeting(user.timezone || 'Europe/Lisbon', name);
+
+    return {
+      date,
+      greeting,
+      summary,
+      stats: {
+        emailsProcessed: emails.length,
+        highPriority: urgentCount,
+        needReply: needsReply.length,
+        informational: lowPriorityCount,
+      },
+      categories: {
+        highPriority: { count: urgentCount, emails: highPriority.slice(0, 3) },
+        needsReply: {
+          count: needsReply.length,
+          emails: needsReply.slice(0, 3),
+        },
+        meetings: { count: meetings.length, emails: meetings.slice(0, 3) },
+        finance: { count: finance.length, emails: finance.slice(0, 3) },
+        updates: { count: lowPriorityCount, emails: updates.slice(0, 3) },
+      },
+    };
   }
 
   async search(email: string, query: string): Promise<IntelligentSearchResult> {
@@ -134,14 +186,7 @@ export class DashboardService {
     };
   }
 
-  async getStats(email: string): Promise<{
-    total: number;
-    urgent: number;
-    needsReview: number;
-    lowPriority: number;
-    topSenders: { sender: string; count: number }[];
-    upcomingDeadlines: { subject: string; deadline: string; sender: string }[];
-  }> {
+  async getStats(email: string) {
     const user = await this.userRepo.findByEmail(email);
     if (!user) {
       return {
@@ -149,13 +194,103 @@ export class DashboardService {
         urgent: 0,
         needsReview: 0,
         lowPriority: 0,
+        needsReply: 0,
+        meetings: 0,
+        finance: 0,
+        updates: 0,
         topSenders: [],
         upcomingDeadlines: [],
       };
     }
 
-    const stats = await this.emailRecordRepo.getStatsForUser(user.id);
-    return stats;
+    return this.emailRecordRepo.getStatsForUser(user.id);
+  }
+
+  async getDailyBrief(email: string) {
+    const user = await this.userRepo.findByEmail(email);
+    if (!user) {
+      return {
+        date: new Date().toISOString().split('T')[0],
+        greeting: 'Good Day',
+        summary: [],
+        stats: { emailsProcessed: 0, highPriority: 0, needReply: 0, informational: 0 },
+        categories: {
+          highPriority: { count: 0, emails: [] },
+          needsReply: { count: 0, emails: [] },
+          meetings: { count: 0, emails: [] },
+          finance: { count: 0, emails: [] },
+          updates: { count: 0, emails: [] },
+        },
+      };
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    return this.buildDailyBriefForDate(user, today);
+  }
+
+  async getAnalytics(email: string) {
+    const user = await this.userRepo.findByEmail(email);
+    if (!user) {
+      return {
+        emailsThisWeek: 0,
+        averagePerDay: 0,
+        categoryBreakdown: { urgent: 0, needsReview: 0, lowPriority: 0 },
+        topSenders: [],
+        highPriorityCount: 0,
+        dailyVolume: [],
+      };
+    }
+
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [categoryCounts, weeklyEmails, dailyVolume, topSenders] = await Promise.all([
+      this.emailRecordRepo.countByCategory(user.id),
+      this.emailRecordRepo.findByUserSince(user.id, weekAgo),
+      this.emailRecordRepo.getDailyVolume(user.id, thirtyDaysAgo),
+      this.emailRecordRepo.getTopSenders(user.id, 5),
+    ]);
+
+    const averagePerDay = dailyVolume.length > 0
+      ? Math.round((dailyVolume.reduce((sum, d) => sum + d.count, 0) / dailyVolume.length) * 10) / 10
+      : 0;
+
+    return {
+      emailsThisWeek: weeklyEmails.length,
+      averagePerDay,
+      categoryBreakdown: {
+        urgent: categoryCounts.urgent,
+        needsReview: categoryCounts.needsReview,
+        lowPriority: categoryCounts.lowPriority,
+      },
+      topSenders,
+      highPriorityCount: categoryCounts.urgent,
+      dailyVolume,
+    };
+  }
+
+  private buildGreeting(timezone: string, name: string): string {
+    try {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        hour12: false,
+        timeZone: timezone || 'Europe/Lisbon',
+      });
+      const hour = parseInt(formatter.format(now), 10);
+
+      let period: string;
+      if (hour >= 5 && hour < 12) period = 'Morning';
+      else if (hour >= 12 && hour < 17) period = 'Afternoon';
+      else period = 'Evening';
+
+      return `Good ${period}, ${name}`;
+    } catch {
+      return `Good Day, ${name}`;
+    }
   }
 
   private async extractIntent(query: string): Promise<ExtractedSearchIntent> {

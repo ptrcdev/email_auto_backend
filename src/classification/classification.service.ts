@@ -38,6 +38,7 @@ export class ClassificationService {
     emails: RawEmail[],
     priorities: Priority[],
     importantSenders: string[] = [],
+    userRole?: string | null,
   ): Promise<Map<string, ClassificationResult>> {
     const results = new Map<string, ClassificationResult>();
 
@@ -55,7 +56,7 @@ export class ClassificationService {
 
     for (const email of emails) {
       try {
-        const result = await this.classifyOne(email, extraContext);
+        const result = await this.classifyOne(email, extraContext, userRole);
         results.set(email.id, result);
       } catch (error) {
         this.logger.error(`Failed to classify email ${email.id}:`, error);
@@ -74,11 +75,16 @@ export class ClassificationService {
   private async classifyOne(
     email: RawEmail,
     priorityContext: string,
+    userRole?: string | null,
   ): Promise<ClassificationResult> {
+    const professionalDescription = userRole
+      ? `a ${userRole}`
+      : 'a busy professional';
+
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: 'system',
-        content: `You are an email classifier for a busy real estate/construction professional. Classify emails and extract key information. Always respond with valid JSON matching the required schema.`,
+        content: `You are an email classifier for ${professionalDescription}. Classify emails and extract key information. Always respond with valid JSON matching the required schema.`,
       },
       {
         role: 'user',

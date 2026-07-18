@@ -21,12 +21,14 @@ export class User {
   @Column({ nullable: true })
   name: string;
 
-  // WhatsApp fields archived — re-activate when WhatsApp integration is enabled
-  // @Column({ nullable: true })
-  // whatsappNumber: string;
+  @Column({ nullable: true })
+  preferredName: string;
 
-  // @Column({ default: false })
-  // whatsappOptedIn: boolean;
+  @Column({ nullable: true })
+  role: string;
+
+  @Column({ nullable: true })
+  addressStyle: string;
 
   @Column({ nullable: true })
   googleAccessToken: string;

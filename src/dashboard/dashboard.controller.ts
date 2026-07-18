@@ -15,12 +15,6 @@ export class DashboardController {
 
   constructor(private readonly dashboardService: DashboardService) {}
 
-  @Get(':email/emails')
-  async getEmails(@Param('email') email: string, @Query('days') days?: string) {
-    const numDays = days ? parseInt(days, 10) : 30;
-    return this.dashboardService.getEmails_groupedByDay(email, numDays);
-  }
-
   @Post(':email/search')
   async search(@Param('email') email: string, @Body() body: { query: string }) {
     return this.dashboardService.search(email, body.query);
@@ -29,5 +23,24 @@ export class DashboardController {
   @Get(':email/stats')
   async getStats(@Param('email') email: string) {
     return this.dashboardService.getStats(email);
+  }
+
+  @Get(':email/daily-brief')
+  async getDailyBrief(@Param('email') email: string) {
+    return this.dashboardService.getDailyBrief(email);
+  }
+
+  @Get(':email/daily-briefs')
+  async getDailyBriefs(
+    @Param('email') email: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.dashboardService.getDailyBriefs(email, from, to);
+  }
+
+  @Get(':email/analytics')
+  async getAnalytics(@Param('email') email: string) {
+    return this.dashboardService.getAnalytics(email);
   }
 }
