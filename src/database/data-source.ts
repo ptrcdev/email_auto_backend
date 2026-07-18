@@ -9,6 +9,7 @@ import { AddReminderColumns1719612000001 } from './migrations/1719612000001-AddR
 import { AddCalendarTokenColumns1719612000003 } from './migrations/1719612000003-AddCalendarTokenColumns';
 import { AddCalendarEventId1719612000002 } from './migrations/1719612000002-AddCalendarEventId';
 import { AddPermanentAndImportantSenders1719612000004 } from './migrations/1719612000004-AddPermanentAndImportantSenders';
+import { AddOnboardingFields1719612000005 } from './migrations/1719612000005-AddOnboardingFields';
 
 config();
 
@@ -27,6 +28,7 @@ if (process.env.DATABASE_URL) {
       AddCalendarEventId1719612000002,
       AddCalendarTokenColumns1719612000003,
       AddPermanentAndImportantSenders1719612000004,
+      AddOnboardingFields1719612000005,
     ],
     synchronize: false,
     ssl: isProduction ? { rejectUnauthorized: false } : false,

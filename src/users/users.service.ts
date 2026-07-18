@@ -54,6 +54,10 @@ export class UsersService {
   async updateOnboarding(
     email: string,
     data: {
+      name?: string;
+      preferredName?: string;
+      role?: string;
+      addressStyle?: string;
       digestTime?: string;
       reminderTime?: string;
       reminderEnabled?: boolean;
@@ -80,6 +84,10 @@ export class UsersService {
 
     return {
       userId: user.id,
+      name: user.name,
+      preferredName: user.preferredName,
+      role: user.role,
+      addressStyle: user.addressStyle,
       digestTime: user.digestTime,
       reminderTime: user.reminderTime,
       reminderEnabled: user.reminderEnabled,
@@ -93,6 +101,10 @@ export class UsersService {
   async updateSettings(
     email: string,
     data: {
+      name?: string;
+      preferredName?: string;
+      role?: string;
+      addressStyle?: string;
       digestTime?: string;
       reminderTime?: string;
       reminderEnabled?: boolean;

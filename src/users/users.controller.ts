@@ -17,6 +17,10 @@ export class UsersController {
     @Param('email') email: string,
     @Body()
     body: {
+      name?: string;
+      preferredName?: string;
+      role?: string;
+      addressStyle?: string;
       digestTime?: string;
       reminderTime?: string;
       reminderEnabled?: boolean;
@@ -37,6 +41,10 @@ export class UsersController {
     @Param('email') email: string,
     @Body()
     body: {
+      name?: string;
+      preferredName?: string;
+      role?: string;
+      addressStyle?: string;
       digestTime?: string;
       reminderTime?: string;
       reminderEnabled?: boolean;

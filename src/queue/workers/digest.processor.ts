@@ -86,6 +86,7 @@ export class DigestProcessor implements OnModuleInit, OnModuleDestroy {
       rawEmails,
       activePriorities,
       user.importantSenders || [],
+      user.role,
     );
 
     const emailRecords: EmailRecord[] = [];

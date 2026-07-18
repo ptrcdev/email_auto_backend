@@ -97,35 +97,152 @@ export class EmailRecordRepository {
     return emails;
   }
 
-  async getStatsForUser(userId: string): Promise<{
-    total: number;
-    urgent: number;
-    needsReview: number;
-    lowPriority: number;
-    topSenders: { sender: string; count: number }[];
-    upcomingDeadlines: { subject: string; deadline: string; sender: string }[];
-  }> {
-    const total = await this.repo.count({ where: { userId } });
+  async countByCategory(
+    userId: string,
+    since?: Date,
+  ): Promise<{ urgent: number; needsReview: number; lowPriority: number }> {
+    const qb = this.repo.createQueryBuilder('e').where('e.userId = :userId', { userId });
+    if (since) {
+      qb.andWhere('e.receivedAt >= :since', { since });
+    }
 
-    const urgent = await this.repo.count({
-      where: { userId, category: 'urgent' },
-    });
-    const needsReview = await this.repo.count({
-      where: { userId, category: 'needs_review' },
-    });
-    const lowPriority = await this.repo.count({
-      where: { userId, category: 'low_priority' },
-    });
+    const rows = await qb
+      .select('e.category', 'category')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('e.category')
+      .getRawMany();
 
-    const topSenders = await this.repo
+    const counts = { urgent: 0, needsReview: 0, lowPriority: 0 };
+    for (const row of rows) {
+      if (row.category === 'urgent') counts.urgent = parseInt(row.count, 10);
+      else if (row.category === 'needs_review') counts.needsReview = parseInt(row.count, 10);
+      else if (row.category === 'low_priority') counts.lowPriority = parseInt(row.count, 10);
+    }
+    return counts;
+  }
+
+  async countByAction(
+    userId: string,
+    action: string,
+    since?: Date,
+  ): Promise<number> {
+    const qb = this.repo
+      .createQueryBuilder('e')
+      .where('e.userId = :userId', { userId })
+      .andWhere('e.suggestedAction = :action', { action });
+    if (since) {
+      qb.andWhere('e.receivedAt >= :since', { since });
+    }
+    return qb.getCount();
+  }
+
+  async countByExtractedField(
+    userId: string,
+    field: 'amount' | 'deadline',
+    since?: Date,
+  ): Promise<number> {
+    const qb = this.repo
+      .createQueryBuilder('e')
+      .where('e.userId = :userId', { userId })
+      .andWhere(`e."extractedFields"->>'${field}' IS NOT NULL`)
+      .andWhere(`e."extractedFields"->>'${field}' != ''`);
+    if (since) {
+      qb.andWhere('e.receivedAt >= :since', { since });
+    }
+    return qb.getCount();
+  }
+
+  async getDailyVolume(
+    userId: string,
+    since: Date,
+  ): Promise<{ date: string; count: number }[]> {
+    const rows = await this.repo
+      .createQueryBuilder('e')
+      .select("TO_CHAR(e.receivedAt, 'YYYY-MM-DD')", 'date')
+      .addSelect('COUNT(*)', 'count')
+      .where('e.userId = :userId', { userId })
+      .andWhere('e.receivedAt >= :since', { since })
+      .groupBy("TO_CHAR(e.receivedAt, 'YYYY-MM-DD')")
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    return rows.map((r) => ({ date: r.date, count: parseInt(r.count, 10) }));
+  }
+
+  async getTopSenders(
+    userId: string,
+    limit: number = 5,
+  ): Promise<{ sender: string; count: number }[]> {
+    const rows = await this.repo
       .createQueryBuilder('e')
       .select('e.sender', 'sender')
       .addSelect('COUNT(*)', 'count')
       .where('e.userId = :userId', { userId })
       .groupBy('e.sender')
       .orderBy('count', 'DESC')
-      .limit(5)
+      .limit(limit)
       .getRawMany();
+
+    return rows.map((s) => ({
+      sender: s.sender,
+      count: parseInt(s.count, 10),
+    }));
+  }
+
+  async findDistinctDatesForUser(
+    userId: string,
+    from?: Date,
+    to?: Date,
+  ): Promise<string[]> {
+    const qb = this.repo
+      .createQueryBuilder('e')
+      .select("TO_CHAR(e.receivedAt, 'YYYY-MM-DD')", 'date')
+      .where('e.userId = :userId', { userId })
+      .groupBy("TO_CHAR(e.receivedAt, 'YYYY-MM-DD')")
+      .orderBy('date', 'DESC');
+
+    if (from) {
+      qb.andWhere('e.receivedAt >= :from', { from });
+    }
+    if (to) {
+      qb.andWhere('e.receivedAt <= :to', { to });
+    }
+
+    const rows = await qb.getRawMany();
+    return rows.map((r) => r.date);
+  }
+
+  async findByUserForDate(userId: string, date: string): Promise<EmailRecord[]> {
+    const start = new Date(`${date}T00:00:00.000Z`);
+    const end = new Date(`${date}T23:59:59.999Z`);
+    return this.repo
+      .createQueryBuilder('e')
+      .where('e.userId = :userId', { userId })
+      .andWhere('e.receivedAt >= :start', { start })
+      .andWhere('e.receivedAt <= :end', { end })
+      .orderBy('e.receivedAt', 'DESC')
+      .getMany();
+  }
+
+  async getStatsForUser(userId: string): Promise<{
+    total: number;
+    urgent: number;
+    needsReview: number;
+    lowPriority: number;
+    needsReply: number;
+    meetings: number;
+    finance: number;
+    updates: number;
+    topSenders: { sender: string; count: number }[];
+    upcomingDeadlines: { subject: string; deadline: string; sender: string }[];
+  }> {
+    const total = await this.repo.count({ where: { userId } });
+    const categoryCounts = await this.countByCategory(userId);
+    const needsReply = await this.countByAction(userId, 'reply');
+    const meetings = await this.countByExtractedField(userId, 'deadline');
+    const finance = await this.countByExtractedField(userId, 'amount');
+    const updates = categoryCounts.lowPriority;
+    const topSenders = await this.getTopSenders(userId, 5);
 
     const allEmails = await this.repo.find({
       where: { userId },
@@ -148,13 +265,14 @@ export class EmailRecordRepository {
 
     return {
       total,
-      urgent,
-      needsReview,
-      lowPriority,
-      topSenders: topSenders.map((s) => ({
-        sender: s.sender,
-        count: parseInt(s.count, 10),
-      })),
+      urgent: categoryCounts.urgent,
+      needsReview: categoryCounts.needsReview,
+      lowPriority: categoryCounts.lowPriority,
+      needsReply,
+      meetings,
+      finance,
+      updates,
+      topSenders,
       upcomingDeadlines,
     };
   }
