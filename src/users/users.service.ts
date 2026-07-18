@@ -1,6 +1,11 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { UserRepository } from '../repositories/user.repository.js';
 import { CalendarService } from '../calendar/calendar.service.js';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { EmailRecord } from '../entities/email-record.entity.js';
+import { Digest } from '../entities/digest.entity.js';
+import { Priority } from '../entities/priority.entity.js';
 
 @Injectable()
 export class UsersService {
@@ -9,6 +14,12 @@ export class UsersService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly calendarService: CalendarService,
+    @InjectRepository(EmailRecord)
+    private readonly emailRecordRepo: Repository<EmailRecord>,
+    @InjectRepository(Digest)
+    private readonly digestRepo: Repository<Digest>,
+    @InjectRepository(Priority)
+    private readonly priorityRepo: Repository<Priority>,
   ) {}
 
   private async syncCalendarIfNeeded(
@@ -120,6 +131,21 @@ export class UsersService {
     await this.userRepo.update(user.id, data);
     await this.syncCalendarIfNeeded(user, data);
     this.logger.log(`Settings saved for user ${email}`);
+    return { status: 'ok' };
+  }
+
+  async deleteAccount(email: string): Promise<{ status: 'ok' }> {
+    const user = await this.userRepo.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.emailRecordRepo.delete({ userId: user.id });
+    await this.digestRepo.delete({ userId: user.id });
+    await this.priorityRepo.delete({ userId: user.id });
+    await this.userRepo.delete(user.id);
+
+    this.logger.log(`Account deleted for user ${email}`);
     return { status: 'ok' };
   }
 }
